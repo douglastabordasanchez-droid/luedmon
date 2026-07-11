@@ -6,6 +6,8 @@ import {
   ChevronRight, Settings, Eye, Users, User, Radio,
   Plus, Trash2, Edit3, Save, LogOut, BarChart3,
   Key, FileText, Image as ImageIcon,
+  HardHat, Server, MonitorPlay, DoorClosed, MapPinned,
+  PlayCircle, ChevronLeft, Maximize2,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -298,7 +300,11 @@ function TiltCard({ children, className = "", style = {}, onClick }: {
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
     <div ref={ref} className={className} style={{ ...style, transition: "transform .18s ease", transformStyle: "preserve-3d" }}
-      onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}>{children}</div>
+      onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}
+      role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}>
+      {children}
+    </div>
   );
 }
 
@@ -1426,6 +1432,215 @@ function MantenimientoPage({ setPage }: { setPage: (p: Page) => void }) {
   );
 }
 
+// ─── Galería Técnica (Portafolio Interactivo) ────────────────────────────────
+type GalleryCategoryId = "alturas" | "redes" | "control" | "acceso" | "cobertura";
+
+interface GalleryCategory { id: GalleryCategoryId; label: string; icon: typeof HardHat }
+
+const GALLERY_CATEGORIES: GalleryCategory[] = [
+  { id: "alturas", label: "Alturas & Fachadas", icon: HardHat },
+  { id: "redes", label: "Redes & CCTV", icon: Server },
+  { id: "control", label: "Centro de Monitoreo", icon: MonitorPlay },
+  { id: "acceso", label: "Control de Acceso", icon: DoorClosed },
+  { id: "cobertura", label: "Cobertura Bogotá", icon: MapPinned },
+];
+
+interface GalleryItem { id: string; src: string; category: GalleryCategoryId; alt: string; size: "big" | "wide" | "normal" }
+
+const GALLERY_ITEMS: GalleryItem[] = [
+  { id: "g1", src: "/imagen 1.png", category: "alturas", size: "big", alt: "Técnico de LUEDMON realizando cableado estructurado en la fachada alta de un edificio residencial en Bogotá" },
+  { id: "g2", src: "/imagen 2.png", category: "alturas", size: "normal", alt: "Instalación de cableado y tuberías de seguridad electrónica a nivel de piso en exteriores" },
+  { id: "g13", src: "/imagen 13.jpg", category: "alturas", size: "wide", alt: "Técnico de alturas verificando la parte alta de la fachada de una infraestructura protegida" },
+
+  { id: "g6", src: "/imagen 6.png", category: "redes", size: "big", alt: "Técnico configurando rack de comunicaciones con cableado estructurado y switches de red de gran escala" },
+  { id: "g17", src: "/imagen 17.png", category: "redes", size: "normal", alt: "Revisión técnica de rack de servidores y equipos de red para CCTV" },
+  { id: "g7", src: "/imagen 7.png", category: "redes", size: "normal", alt: "Ajuste de soporte metálico para montaje de equipos de videovigilancia" },
+  { id: "g11", src: "/imagen 11.png", category: "redes", size: "wide", alt: "Conexiones eléctricas y electrónicas en caja de paso del sistema de seguridad" },
+
+  { id: "g8", src: "/imagen 8.png", category: "control", size: "big", alt: "Operario de LUEDMON en centro de control con monitoreo de cámaras 24/7" },
+  { id: "g16", src: "/imagen 16.png", category: "control", size: "wide", alt: "Estación de monitoreo con mapa digital y flujos de cámaras de seguridad en tiempo real" },
+
+  { id: "g3", src: "/imagen 3.png", category: "acceso", size: "big", alt: "Instalación de brazo de talanquera vehicular automática en parqueadero" },
+  { id: "g4", src: "/imagen 4.png", category: "acceso", size: "normal", alt: "Ajuste del sistema interior del gabinete de una talanquera automática" },
+  { id: "g14", src: "/imagen 14.png", category: "acceso", size: "normal", alt: "Adecuación de obra civil con malla de refuerzo en rampa de acceso vehicular" },
+  { id: "g15", src: "/imagen 15.png", category: "acceso", size: "wide", alt: "Vista general de rampa y pasillo técnico de acceso vehicular bajo supervisión" },
+
+  { id: "g9", src: "/imagen 9.png", category: "cobertura", size: "big", alt: "Fijación de tuberías metálicas en el techo de una infraestructura de seguridad" },
+  { id: "g10", src: "/imagen 10.png", category: "cobertura", size: "normal", alt: "Acceso peatonal con equipos de control de acceso integrados en copropiedad de Bogotá" },
+  { id: "g12", src: "/imagen 12.png", category: "cobertura", size: "wide", alt: "Técnicos de LUEDMON coordinando instalación de seguridad electrónica en entorno urbano de Bogotá" },
+];
+
+const GALLERY_VIDEOS = [
+  { id: "v1", src: encodeURI("/VID-20240921-WA0005.mp4"), label: "Instalación en sitio", desc: "Caso de éxito en video" },
+  { id: "v2", src: encodeURI("/WhatsApp Video 2026-01-10 at 8.55.30 AM.mp4"), label: "Puesta en marcha", desc: "Sistema de seguridad operativo" },
+];
+
+const GALLERY_SIZE_CLASSES: Record<GalleryItem["size"], string> = {
+  big: "col-span-2 row-span-2",
+  wide: "col-span-2 row-span-1",
+  normal: "col-span-1 row-span-1",
+};
+
+function GalleryLightbox({ items, index, onClose, onNav }: { items: GalleryItem[]; index: number; onClose: () => void; onNav: (i: number) => void }) {
+  const item = items[index];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") onNav((index + 1) % items.length);
+      if (e.key === "ArrowLeft") onNav((index - 1 + items.length) % items.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, items.length, onClose, onNav]);
+
+  if (!item) return null;
+  const cat = GALLERY_CATEGORIES.find(c => c.id === item.category)!;
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-8" style={{ animation: "scaleIn .2s ease" }}>
+      <div className="absolute inset-0" style={{ background: "rgba(2,6,15,.94)", backdropFilter: "blur(6px)" }} onClick={onClose} />
+      <button onClick={onClose} aria-label="Cerrar" className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(255,255,255,.06)", color: "#e2e8f0" }}>
+        <X size={20} />
+      </button>
+      <button onClick={() => onNav((index - 1 + items.length) % items.length)} aria-label="Anterior" className="hidden sm:flex absolute left-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(255,255,255,.06)", color: "#00f2ff" }}>
+        <ChevronLeft size={22} />
+      </button>
+      <button onClick={() => onNav((index + 1) % items.length)} aria-label="Siguiente" className="hidden sm:flex absolute right-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(255,255,255,.06)", color: "#00f2ff" }}>
+        <ChevronRight size={22} />
+      </button>
+      <div className="relative z-10 max-w-4xl w-full" onClick={e => e.stopPropagation()}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(0,242,255,.18)", boxShadow: "0 30px 100px rgba(0,0,0,.7)" }}>
+          <img src={item.src} alt={item.alt} className="w-full max-h-[70vh] object-contain" style={{ background: "#000" }} />
+        </div>
+        <div className="mt-4 flex items-center gap-3 justify-center text-center flex-wrap">
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded uppercase flex items-center gap-1.5" style={{ background: "rgba(0,242,255,.12)", border: "1px solid rgba(0,242,255,.3)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
+            <cat.icon size={11} />{cat.label}
+          </span>
+          <span className="text-xs" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>{index + 1} / {items.length}</span>
+        </div>
+        <p className="mt-2 text-sm text-center max-w-xl mx-auto" style={{ color: "#e2e8f0", fontFamily: "'Inter',sans-serif" }}>{item.alt}</p>
+      </div>
+    </div>
+  );
+}
+
+function VideoLightbox({ src, label, onClose }: { src: string; label: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-8" style={{ animation: "scaleIn .2s ease" }}>
+      <div className="absolute inset-0" style={{ background: "rgba(2,6,15,.94)", backdropFilter: "blur(6px)" }} onClick={onClose} />
+      <button onClick={onClose} aria-label="Cerrar" className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(255,255,255,.06)", color: "#e2e8f0" }}>
+        <X size={20} />
+      </button>
+      <div className="relative z-10 max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(0,242,255,.18)", boxShadow: "0 30px 100px rgba(0,0,0,.7)" }}>
+          <video src={src} controls autoPlay playsInline className="w-full max-h-[70vh]" style={{ background: "#000" }} />
+        </div>
+        <p className="mt-4 text-sm text-center" style={{ color: "#e2e8f0", fontFamily: "'Inter',sans-serif" }}>{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function VideoCard({ src, label, desc }: { src: string; label: string; desc: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <TiltCard onClick={() => setOpen(true)} className="group relative rounded-2xl overflow-hidden cursor-pointer" style={{ aspectRatio: "16/9", border: "1px solid rgba(0,242,255,.14)" }}>
+        <video src={src} muted loop autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-45 transition-opacity duration-300 group-hover:opacity-65" />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(6,15,30,.92) 10%, rgba(6,15,30,.3) 60%, rgba(6,15,30,.5) 100%)" }} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110" style={{ background: "rgba(0,242,255,.16)", border: "1px solid rgba(0,242,255,.4)", backdropFilter: "blur(4px)" }}>
+            <PlayCircle size={30} style={{ color: "#00f2ff" }} />
+          </div>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-5">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase" style={{ background: "rgba(0,242,255,.14)", border: "1px solid rgba(0,242,255,.3)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>Video</span>
+          <h4 className="text-sm font-bold mt-2" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{label}</h4>
+          <p className="text-xs mt-0.5" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{desc}</p>
+        </div>
+      </TiltCard>
+      {open && <VideoLightbox src={src} label={label} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function GallerySection() {
+  const [filter, setFilter] = useState<"todos" | GalleryCategoryId>("todos");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const filtered = filter === "todos" ? GALLERY_ITEMS : GALLERY_ITEMS.filter(i => i.category === filter);
+
+  return (
+    <section className="py-16 px-6" style={{ background: "#060f1e" }}>
+      <div className="max-w-7xl mx-auto">
+        <Reveal className="text-center mb-10">
+          <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// GALERÍA TÉCNICA</div>
+          <h2 className="text-3xl md:text-4xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Trabajo en Terreno — Bogotá</h2>
+          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>Registro fotográfico real de nuestras instalaciones: alturas, redes, monitoreo, control de acceso y cobertura en Bogotá.</p>
+        </Reveal>
+
+        {/* Filter tabs */}
+        <div className="flex gap-2 justify-center mb-10 flex-wrap">
+          <button onClick={() => setFilter("todos")} className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all"
+            style={{ background: filter === "todos" ? "#00f2ff" : "rgba(0,242,255,.07)", color: filter === "todos" ? "#060f1e" : "rgba(226,232,240,.7)", border: `1px solid ${filter === "todos" ? "#00f2ff" : "rgba(0,242,255,.18)"}`, fontFamily: "'Inter',sans-serif" }}>
+            Todos
+          </button>
+          {GALLERY_CATEGORIES.map(c => (
+            <button key={c.id} onClick={() => setFilter(c.id)} className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all"
+              style={{ background: filter === c.id ? "#00f2ff" : "rgba(0,242,255,.07)", color: filter === c.id ? "#060f1e" : "rgba(226,232,240,.7)", border: `1px solid ${filter === c.id ? "#00f2ff" : "rgba(0,242,255,.18)"}`, fontFamily: "'Inter',sans-serif" }}>
+              <c.icon size={14} />{c.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Bento grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 grid-flow-row-dense gap-3 sm:gap-4 auto-rows-[150px] sm:auto-rows-[180px] lg:auto-rows-[210px]">
+          {filtered.map((item, i) => {
+            const cat = GALLERY_CATEGORIES.find(c => c.id === item.category)!;
+            return (
+              <Reveal key={item.id} delay={(i % 8) * 45} className={GALLERY_SIZE_CLASSES[item.size]}>
+                <TiltCard onClick={() => setLightboxIndex(i)} className="group relative w-full h-full rounded-2xl overflow-hidden cursor-pointer" style={{ border: "1px solid rgba(0,242,255,.1)" }}>
+                  <img src={item.src} alt={item.alt} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: "linear-gradient(to top, rgba(6,15,30,.95) 0%, rgba(6,15,30,.15) 55%, transparent 100%)" }} />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "rgba(0,242,255,.18)", border: "1px solid rgba(0,242,255,.4)", backdropFilter: "blur(4px)" }}>
+                      <Maximize2 size={16} style={{ color: "#00f2ff" }} />
+                    </div>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-1 group-hover:translate-y-0">
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded uppercase inline-flex items-center gap-1" style={{ background: "rgba(0,242,255,.16)", border: "1px solid rgba(0,242,255,.35)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
+                      <cat.icon size={9} />{cat.label}
+                    </span>
+                  </div>
+                </TiltCard>
+              </Reveal>
+            );
+          })}
+        </div>
+
+        {/* Videos complementarios */}
+        <div className="mt-16">
+          <Reveal className="text-center mb-8">
+            <div className="text-xs font-bold tracking-[.2em] uppercase mb-2" style={{ color: "#ffb703", fontFamily: "'JetBrains Mono',monospace" }}>// CASOS EN VIDEO</div>
+            <h3 className="text-2xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Véalo en Acción</h3>
+          </Reveal>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
+            {GALLERY_VIDEOS.map(v => <VideoCard key={v.id} src={v.src} label={v.label} desc={v.desc} />)}
+          </div>
+        </div>
+      </div>
+
+      {lightboxIndex !== null && (
+        <GalleryLightbox items={filtered} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNav={setLightboxIndex} />
+      )}
+    </section>
+  );
+}
+
 // ─── Proyectos Page ───────────────────────────────────────────────────────────
 const CAT_LABELS: Record<string, string> = { residencial: "Residencial", comercial: "Comercial", industrial: "Industrial" };
 
@@ -1435,8 +1650,13 @@ function ProyectosPage({ projects, setPage }: { projects: Project[]; setPage: (p
   return (
     <>
       <PageHeader tag="// PROYECTOS" title="Casos de Éxito" subtitle="Proyectos de instalación y mantenimiento en los sectores residencial, comercial e industrial de Colombia." />
-      <section className="py-16 px-6" style={{ background: "#060f1e" }}>
+      <GallerySection />
+      <section className="py-16 px-6" style={{ background: "#0b1a33" }}>
         <div className="max-w-7xl mx-auto">
+          <Reveal className="text-center mb-12">
+            <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// PORTAFOLIO</div>
+            <h2 className="text-3xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Proyectos por Sector</h2>
+          </Reveal>
           <div className="flex gap-3 justify-center mb-12 flex-wrap">
             {["todos", "residencial", "comercial", "industrial"].map(cat => (
               <button key={cat} onClick={() => setFilter(cat)} className="px-5 py-2.5 rounded-full text-sm font-semibold capitalize transition-all"
