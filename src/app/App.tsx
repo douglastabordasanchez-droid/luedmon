@@ -57,19 +57,19 @@ const DEFAULT_CONTENT: SiteContent = {
 };
 
 const DEFAULT_PROJECTS: Project[] = [
-  { id: "1", title: "Conjunto Residencial El Pinar", category: "residencial", items: "CCTV · Control de Acceso · Alarma", imageUrl: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=600&h=400&fit=crop&auto=format" },
-  { id: "2", title: "Edificio Empresarial Centro Mayor", category: "comercial", items: "CCTV · Cerca Eléctrica · Alarma", imageUrl: "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=600&h=400&fit=crop&auto=format" },
-  { id: "3", title: "Planta Industrial Zona Franca", category: "industrial", items: "CCTV HD · Control de Acceso · Cerca Eléctrica", imageUrl: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600&h=400&fit=crop&auto=format" },
-  { id: "4", title: "Urbanización Villa del Sol", category: "residencial", items: "CCTV · Alarma Comunitaria · Videoportero", imageUrl: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=600&h=400&fit=crop&auto=format" },
-  { id: "5", title: "Centro Comercial Multiplaza", category: "comercial", items: "CCTV · Control Vehicular · Alarmas", imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&h=400&fit=crop&auto=format" },
-  { id: "6", title: "Bodega Logística Norte", category: "industrial", items: "CCTV Exterior · Cerca Eléctrica · Control de Acceso", imageUrl: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop&auto=format" },
-];
+  { id: "1", title: "Conjunto Residencial El Pinar", category: "residencial", items: "CCTV · Control de Acceso · Alarma", imageUrl: "/imagen 1.png" },
+  { id: "2", title: "Edificio Empresarial Centro Mayor", category: "comercial", items: "CCTV · Cerca Eléctrica · Alarma", imageUrl: "/imagen 10.png" },
+  { id: "3", title: "Planta Industrial Zona Franca", category: "industrial", items: "CCTV HD · Control de Acceso · Cerca Eléctrica", imageUrl: "/imagen 7.png" },
+  { id: "4", title: "Urbanización Villa del Sol", category: "residencial", items: "CCTV · Alarma Comunitaria · Videoportero", imageUrl: "/imagen 3.png" },
+  { id: "5", title: "Centro Comercial Multiplaza", category: "comercial", items: "CCTV · Control Vehicular · Alarmas", imageUrl: "/imagen 17.png" },
+  { id: "6", title: "Bodega Logística Norte", category: "industrial", items: "CCTV Exterior · Cerca Eléctrica · Control de Acceso", imageUrl: "/imagen 14.png" },
+];Luedmon2026++
 
 const DEFAULT_APP_STATE: AppState = {
   content: DEFAULT_CONTENT,
   projects: DEFAULT_PROJECTS,
   leads: [],
-  adminPassword: "Noruega2025++*",
+  adminPassword: "Luedmon2026++",
   adminFirstLogin: true,
 };
 
@@ -333,7 +333,7 @@ function AdminLogin({ pw, onSuccess, onClose }: { pw: string; onSuccess: () => v
   const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState("");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (u === "Admin" && p === pw) { onSuccess(); } else { setErr("Credenciales incorrectas."); }
+    if (u === "luedmon" && p === pw) { onSuccess(); } else { setErr("Credenciales incorrectas."); }
   };
   const inp = "w-full px-4 py-3 rounded-xl outline-none text-sm";
   const iStyle = { background: "rgba(0,242,255,.05)", border: "1px solid rgba(0,242,255,.2)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
@@ -877,10 +877,10 @@ function WhatsAppFloat() {
     <div className="fixed bottom-7 right-7 z-50 flex items-center">
       {hov && (
         <div className="mr-3 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap" style={{ background: "rgba(6,15,30,.95)", border: "1px solid rgba(0,242,255,.2)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(12px)", animation: "fadeLeft .2s ease" }}>
-          Soporte y Emergencias Técnicas 24/7
+          Solicita tu cotización con LUEDMON
         </div>
       )}
-      <a href="https://wa.me/573158006089" target="_blank" rel="noopener noreferrer"
+      <a href="https://wa.me/573158006089?text=Hola%20LUEDMON%2C%20quiero%20solicitar%20una%20cotizaci%C3%B3n%20para%20mi%20proyecto." target="_blank" rel="noopener noreferrer"
         onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
         className="relative flex items-center justify-center rounded-full shadow-2xl transition-transform duration-200 hover:scale-110"
         style={{ width: 56, height: 56, background: "#25d366" }}>
@@ -987,7 +987,7 @@ function HeroSection({ content, onLead }: { content: SiteContent; onLead: (l: Le
         {/* Left: Slider */}
         <div className="lg:col-span-3 relative" onMouseEnter={() => { if (iRef.current) clearInterval(iRef.current); }} onMouseLeave={restart}>
           <div className="relative overflow-hidden rounded-3xl" style={{ minHeight: 500, border: "1px solid rgba(0,242,255,.12)", background: "linear-gradient(135deg, rgba(11,26,51,.9) 0%, rgba(6,15,30,.95) 100%)", backdropFilter: "blur(8px)" }}>
-            <video src="/camaras.mp4" autoPlay loop muted playsInline aria-hidden="true" className="object-cover absolute inset-0 w-full h-full -z-10 opacity-40" />
+            <video src="/camaras.mp4" autoPlay loop muted playsInline aria-hidden="true" className="object-cover absolute inset-0 w-full h-full -z-10" style={{ opacity: 0.1 }} />
             {/* Corner brackets */}
             {[["top-0 left-0 border-l border-t", "rounded-tl-lg"], ["top-0 right-0 border-r border-t", "rounded-tr-lg"], ["bottom-0 left-0 border-l border-b", "rounded-bl-lg"], ["bottom-0 right-0 border-r border-b", "rounded-br-lg"]].map(([pos, r], i) => (
               <span key={i} className={`absolute w-6 h-6 ${pos} ${r}`} style={{ borderColor: "rgba(0,242,255,.4)" }} />
@@ -1301,12 +1301,12 @@ function PageHeader({ tag, title, subtitle }: { tag: string; title: string; subt
 
 // ─── Instalación Page ─────────────────────────────────────────────────────────
 const INSTALL_SVCS = [
-  { icon: Camera, title: "CCTV – Circuito Cerrado de Televisión", tag: "CCTV", desc: "Sistemas de videovigilancia que supervisar, controlan y aseguran su propiedad las 24 horas. Grabación continua con acceso remoto desde cualquier dispositivo.", objectives: ["Registro exacto de todo evento o suceso", "Visualización remota desde celular o computador", "Pruebas claras utilizables como evidencia legal", "Prevención de robos y actos delincuenciales", "Supervisión permanente sin importar el horario"], imageUrl: "https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=700&h=450&fit=crop&auto=format" },
-  { icon: Lock, title: "Control de Acceso y Biometría", tag: "ACCESO", desc: "Sistemas biométricos, talanqueras vehiculares y torniquetes peatonales para controlar el ingreso de personas y vehículos a su propiedad.", objectives: ["Identificación por huella dactilar, facial o tarjeta", "Control total del ingreso peatonal y vehicular", "Registro histórico de entradas y salidas", "Neutralización inmediata de accesos no autorizados", "Integración con cámaras y alarmas existentes"], imageUrl: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=700&h=450&fit=crop&auto=format" },
-  { icon: Eye, title: "Automatización de Puertas", tag: "PUERTAS", desc: "Puertas vehiculares y peatonales automatizadas con sensores de movimiento para un control fluido, seguro y eficiente del acceso.", objectives: ["Apertura suave y controlada sin contacto manual", "Neutraliza ingreso de amenazas externas", "Reducción de accidentes en zonas de tráfico vehicular", "Integración con control de acceso biométrico", "Mayor comodidad y eficiencia operativa"], imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=700&h=450&fit=crop&auto=format" },
-  { icon: Bell, title: "Alarmas Residenciales y Comerciales", tag: "ALARMAS", desc: "Sistemas de detección con sensores de movimiento y cierres magnéticos que disparan sirenas y alertas inmediatas al celular mediante app móvil.", objectives: ["Aviso inmediato ante presencia de intrusos", "Detección de eventos atípicos en tiempo real", "Notificaciones a celulares programados vía app", "Disuasión efectiva de actos delictivos"], imageUrl: "https://images.unsplash.com/photo-1586864387789-628af9feed72?w=700&h=450&fit=crop&auto=format" },
-  { icon: Radio, title: "Alarmas Comunitarias", tag: "COMUNIDAD", desc: "Red de alarmas interconectadas que protegen comunidades enteras. Se activan vía app móvil y advierten a todos los vecinos sobre emergencias en el área.", objectives: ["Reducción de la delincuencia en barrios", "Activación remota desde app móvil individual", "Alertas de emergencia en toda el área de cobertura", "Fomento de la seguridad colaborativa vecinal"], imageUrl: "https://images.unsplash.com/photo-1483366774565-c783b9f70e2c?w=700&h=450&fit=crop&auto=format" },
-  { icon: Zap, title: "Cercas Eléctricas", tag: "PERÍMETRO", desc: "Barreras físicas de alta tensión instaladas en el perímetro de su propiedad. Disuaden intrusos al instante y activan alarmas ante cualquier contacto.", objectives: ["Protección continua del perímetro los 365 días", "Detección inmediata de intento de penetración", "Disuasión psicológica efectiva para intrusos", "Calibración precisa de voltaje de seguridad"], imageUrl: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=700&h=450&fit=crop&auto=format" },
+  { icon: Camera, title: "CCTV – Circuito Cerrado de Televisión", tag: "CCTV", desc: "Sistemas de videovigilancia que supervisar, controlan y aseguran su propiedad las 24 horas. Grabación continua con acceso remoto desde cualquier dispositivo.", objectives: ["Registro exacto de todo evento o suceso", "Visualización remota desde celular o computador", "Pruebas claras utilizables como evidencia legal", "Prevención de robos y actos delincuenciales", "Supervisión permanente sin importar el horario"], imageUrl: "/imagen 8.png" },
+  { icon: Lock, title: "Control de Acceso y Biometría", tag: "ACCESO", desc: "Sistemas biométricos, talanqueras vehiculares y torniquetes peatonales para controlar el ingreso de personas y vehículos a su propiedad.", objectives: ["Identificación por huella dactilar, facial o tarjeta", "Control total del ingreso peatonal y vehicular", "Registro histórico de entradas y salidas", "Neutralización inmediata de accesos no autorizados", "Integración con cámaras y alarmas existentes"], imageUrl: "/imagen 3.png" },
+  { icon: Eye, title: "Automatización de Puertas", tag: "PUERTAS", desc: "Puertas vehiculares y peatonales automatizadas con sensores de movimiento para un control fluido, seguro y eficiente del acceso.", objectives: ["Apertura suave y controlada sin contacto manual", "Neutraliza ingreso de amenazas externas", "Reducción de accidentes en zonas de tráfico vehicular", "Integración con control de acceso biométrico", "Mayor comodidad y eficiencia operativa"], imageUrl: "/imagen 15.png" },
+  { icon: Bell, title: "Alarmas Residenciales y Comerciales", tag: "ALARMAS", desc: "Sistemas de detección con sensores de movimiento y cierres magnéticos que disparan sirenas y alertas inmediatas al celular mediante app móvil.", objectives: ["Aviso inmediato ante presencia de intrusos", "Detección de eventos atípicos en tiempo real", "Notificaciones a celulares programados vía app", "Disuasión efectiva de actos delictivos"], imageUrl: "/imagen 16.png" },
+  { icon: Radio, title: "Alarmas Comunitarias", tag: "COMUNIDAD", desc: "Red de alarmas interconectadas que protegen comunidades enteras. Se activan vía app móvil y advierten a todos los vecinos sobre emergencias en el área.", objectives: ["Reducción de la delincuencia en barrios", "Activación remota desde app móvil individual", "Alertas de emergencia en toda el área de cobertura", "Fomento de la seguridad colaborativa vecinal"], imageUrl: "/imagen 12.png" },
+  { icon: Zap, title: "Cercas Eléctricas", tag: "PERÍMETRO", desc: "Barreras físicas de alta tensión instaladas en el perímetro de su propiedad. Disuaden intrusos al instante y activan alarmas ante cualquier contacto.", objectives: ["Protección continua del perímetro los 365 días", "Detección inmediata de intento de penetración", "Disuasión psicológica efectiva para intrusos", "Calibración precisa de voltaje de seguridad"], imageUrl: "/imagen 11.png" },
 ];
 
 function InstalacionPage({ setPage }: { setPage: (p: Page) => void }) {
@@ -1370,8 +1370,8 @@ function MantenimientoPage({ setPage }: { setPage: (p: Page) => void }) {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-20">
             {[
-              { type: "PREVENTIVO", color: "#00f2ff", icon: Shield, headline: "Mantenimientos Preventivos", body: "Realizados dos veces al año para extender la vida útil de sus equipos y prevenir fallas costosas.", stat: "2X", statLabel: "vida útil de equipos", imageUrl: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=700&h=400&fit=crop&auto=format" },
-              { type: "CORRECTIVO", color: "#ffb703", icon: Wrench, headline: "Mantenimientos Correctivos", body: "Diagnóstico y reparación inmediata de fallas en equipos que han dejado de funcionar.", stat: "-45%", statLabel: "costos de emergencia", imageUrl: "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=700&h=400&fit=crop&auto=format" },
+              { type: "PREVENTIVO", color: "#00f2ff", icon: Shield, headline: "Mantenimientos Preventivos", body: "Realizados dos veces al año para extender la vida útil de sus equipos y prevenir fallas costosas.", stat: "2X", statLabel: "vida útil de equipos", imageUrl: "/imagen 13.jpg" },
+              { type: "CORRECTIVO", color: "#ffb703", icon: Wrench, headline: "Mantenimientos Correctivos", body: "Diagnóstico y reparación inmediata de fallas en equipos que han dejado de funcionar.", stat: "-45%", statLabel: "costos de emergencia", imageUrl: "/imagen 17.png" },
             ].map((c, i) => (
               <Reveal key={c.type} from={i === 0 ? "left" : "right"}>
                 <TiltCard className="relative rounded-3xl overflow-hidden" style={{ border: `1px solid ${c.color}22`, minHeight: 280 }}>
@@ -1765,7 +1765,7 @@ function Footer({ setPage, content, onAdminOpen }: { setPage: (p: Page) => void;
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
           <div>
             <button onClick={() => { setPage("home"); window.scrollTo({ top: 0 }); }} className="flex items-center gap-3 mb-4">
-              <img src="/logo-removebg-preview.png" alt="LUEDMON" className="h-20 w-auto brightness-0 invert" />
+              <img src="/logo-removebg-preview.png" alt="LUEDMON" className="h-[180px] w-auto brightness-0 invert" />
             </button>
             <p className="text-sm leading-relaxed text-slate-300" style={{ fontFamily: "'Inter',sans-serif" }}>
               Soluciones integrales en seguridad tecnológica con personal calificado y equipos certificados.
