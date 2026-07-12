@@ -1730,8 +1730,11 @@ function ContactoPage({ content, onLead }: { content: SiteContent; onLead: (l: L
               <div className="p-5 rounded-2xl" style={{ background: "rgba(11,26,51,.5)", border: "1px solid rgba(0,242,255,.08)" }}>
                 <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// REDES SOCIALES</p>
                 <div className="flex gap-3">
-                  {[{ n: "Instagram", h: "@Luedmon.Seguridad" }, { n: "Facebook", h: "@Luedmon.Seguridad" }].map(s => (
-                    <a key={s.n} href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="flex-1 p-4 rounded-2xl text-center transition-all hover:-translate-y-0.5"
+                  {[
+                    { n: "Instagram", h: "@Luedmon.Seguridad", href: "https://www.instagram.com/luedmon.seguridad/" },
+                    { n: "Facebook", h: "@Luedmon.Seguridad", href: "https://www.facebook.com/Luedmon.seguridad/" },
+                  ].map(s => (
+                    <a key={s.n} href={s.href} target="_blank" rel="noopener noreferrer" className="flex-1 p-4 rounded-2xl text-center transition-all hover:-translate-y-0.5"
                       style={{ background: "rgba(0,242,255,.04)", border: "1px solid rgba(0,242,255,.1)" }}>
                       <div className="text-xs font-bold" style={{ color: "#00f2ff", fontFamily: "'Inter',sans-serif" }}>{s.n}</div>
                       <div className="text-xs mt-0.5" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>{s.h}</div>
