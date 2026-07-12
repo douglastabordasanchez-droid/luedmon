@@ -63,7 +63,7 @@ const DEFAULT_PROJECTS: Project[] = [
   { id: "4", title: "Urbanización Villa del Sol", category: "residencial", items: "CCTV · Alarma Comunitaria · Videoportero", imageUrl: "/imagen 3.png" },
   { id: "5", title: "Centro Comercial Multiplaza", category: "comercial", items: "CCTV · Control Vehicular · Alarmas", imageUrl: "/imagen 17.png" },
   { id: "6", title: "Bodega Logística Norte", category: "industrial", items: "CCTV Exterior · Cerca Eléctrica · Control de Acceso", imageUrl: "/imagen 14.png" },
-];Luedmon2026++
+];
 
 const DEFAULT_APP_STATE: AppState = {
   content: DEFAULT_CONTENT,
@@ -1578,9 +1578,9 @@ function GallerySection() {
     <section className="py-16 px-6" style={{ background: "#060f1e" }}>
       <div className="max-w-7xl mx-auto">
         <Reveal className="text-center mb-10">
-          <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// GALERÍA TÉCNICA</div>
+          <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// GALERÍA </div>
           <h2 className="text-3xl md:text-4xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Trabajo en Terreno — Bogotá</h2>
-          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>Registro fotográfico real de nuestras instalaciones: alturas, redes, monitoreo, control de acceso y cobertura en Bogotá.</p>
+          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>Registro fotográfico de nuestras instalaciones: alturas, redes, monitoreo, control de acceso y cobertura en Bogotá.</p>
         </Reveal>
 
         {/* Filter tabs */}
