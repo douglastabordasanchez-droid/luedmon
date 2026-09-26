@@ -39,7 +39,11 @@ interface AppState {
   leads: Lead[];
   adminPassword: string;
   adminFirstLogin: boolean;
+  credVersion?: number;
 }
+
+// Incrementar para forzar el restablecimiento de la contraseña guardada en el navegador
+const CRED_VERSION = 2;
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 const DEFAULT_CONTENT: SiteContent = {
@@ -69,8 +73,9 @@ const DEFAULT_APP_STATE: AppState = {
   content: DEFAULT_CONTENT,
   projects: DEFAULT_PROJECTS,
   leads: [],
-  adminPassword: "Luedmon2026++",
-  adminFirstLogin: true,
+  adminPassword: "Luedmon2026",
+  adminFirstLogin: false,
+  credVersion: CRED_VERSION,
 };
 
 // ─── Persist Hook ──────────────────────────────────────────────────────────────
@@ -80,6 +85,11 @@ function usePersistedState() {
       const s = localStorage.getItem("luedmon_v2");
       if (!s) return DEFAULT_APP_STATE;
       const parsed = JSON.parse(s) as Partial<AppState>;
+      if (parsed.credVersion !== CRED_VERSION) {
+        parsed.adminPassword = DEFAULT_APP_STATE.adminPassword;
+        parsed.adminFirstLogin = DEFAULT_APP_STATE.adminFirstLogin;
+        parsed.credVersion = CRED_VERSION;
+      }
       return {
         ...DEFAULT_APP_STATE,
         ...parsed,
@@ -333,7 +343,7 @@ function AdminLogin({ pw, onSuccess, onClose }: { pw: string; onSuccess: () => v
   const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState("");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (u === "luedmon" && p === pw) { onSuccess(); } else { setErr("Credenciales incorrectas."); }
+    if (u === "Admin" && p === pw) { onSuccess(); } else { setErr("Credenciales incorrectas."); }
   };
   const inp = "w-full px-4 py-3 rounded-xl outline-none text-sm";
   const iStyle = { background: "rgba(0,242,255,.05)", border: "1px solid rgba(0,242,255,.2)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
