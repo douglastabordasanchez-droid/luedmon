@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   BarChart3, Bell, FileText, Image as ImageIcon, Settings, Key, Home, Wrench, Camera, Phone, Mail,
   Globe, FolderOpen, Trash2, Plus, ChevronUp, ChevronDown, ChevronRight, X, LogOut, Save, Upload,
-  Link as LinkIcon, Loader2, RotateCcw, Copy, Check, AlertTriangle,
+  Link as LinkIcon, Loader2, RotateCcw, Copy, Check, AlertTriangle, Eye, EyeOff,
 } from "lucide-react";
 import { api, ApiError, type Lead, type MediaFile } from "../api";
 import {
@@ -52,6 +52,20 @@ function Btn({ children, onClick, variant = "ghost", disabled, type = "button", 
       style={{ ...styles, fontFamily: F.body }}>
       {children}
     </button>
+  );
+}
+
+function PasswordInput({ className, style, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input {...props} type={show ? "text" : "password"} className={className} style={{ ...style, paddingRight: 44 }} />
+      <button type="button" onClick={() => setShow(v => !v)} aria-label={show ? "Ocultar contraseña" : "Mostrar contraseña"} title={show ? "Ocultar contraseña" : "Mostrar contraseña"}
+        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:text-cyan-300"
+        style={{ color: C.muted }}>
+        {show ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
   );
 }
 
@@ -678,9 +692,9 @@ function SettingsTab({ setDraft }: { setDraft: SetDraft }) {
       <form onSubmit={save} className="p-5 rounded-2xl space-y-3" style={cardStyle}>
         <SectionTitle>CAMBIAR CONTRASEÑA</SectionTitle>
         {msg && <div className="p-3 rounded-xl text-sm" style={{ background: ok ? "rgba(16,185,129,.1)" : "rgba(239,68,68,.1)", color: ok ? "#6ee7b7" : C.red }}>{msg}</div>}
-        <input type="password" className={inputCls} style={inputStyle} placeholder="Contraseña actual" value={cur} onChange={e => setCur(e.target.value)} required autoComplete="current-password" />
-        <input type="password" className={inputCls} style={inputStyle} placeholder="Nueva contraseña" value={p1} onChange={e => setP1(e.target.value)} required autoComplete="new-password" />
-        <input type="password" className={inputCls} style={inputStyle} placeholder="Confirmar contraseña" value={p2} onChange={e => setP2(e.target.value)} required autoComplete="new-password" />
+        <PasswordInput className={inputCls} style={inputStyle} placeholder="Contraseña actual" value={cur} onChange={e => setCur(e.target.value)} required autoComplete="current-password" />
+        <PasswordInput className={inputCls} style={inputStyle} placeholder="Nueva contraseña" value={p1} onChange={e => setP1(e.target.value)} required autoComplete="new-password" />
+        <PasswordInput className={inputCls} style={inputStyle} placeholder="Confirmar contraseña" value={p2} onChange={e => setP2(e.target.value)} required autoComplete="new-password" />
         <Btn type="submit" variant="amber" disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />} Actualizar contraseña</Btn>
       </form>
       <div className="p-5 rounded-2xl space-y-3" style={cardStyle}>
@@ -719,7 +733,7 @@ function AdminLogin({ onSuccess, onClose, logo }: { onSuccess: (token: string) =
         </div>
         {err && <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", color: C.red, fontFamily: F.body }}>{err}</div>}
         <input className="w-full px-4 py-3 rounded-xl outline-none text-sm" style={iStyle} placeholder="Usuario" value={u} onChange={e => setU(e.target.value)} required autoComplete="username" />
-        <input type="password" className="w-full px-4 py-3 rounded-xl outline-none text-sm" style={iStyle} placeholder="Contraseña" value={p} onChange={e => setP(e.target.value)} required autoComplete="current-password" />
+        <PasswordInput className="w-full px-4 py-3 rounded-xl outline-none text-sm" style={iStyle} placeholder="Contraseña" value={p} onChange={e => setP(e.target.value)} required autoComplete="current-password" />
         <button type="submit" disabled={busy} className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:brightness-110 disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: C.cyan, color: "#060f1e", fontFamily: F.head }}>
           {busy && <Loader2 size={15} className="animate-spin" />} Ingresar →
         </button>
