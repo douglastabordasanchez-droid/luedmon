@@ -1,117 +1,38 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Camera, Shield, Zap, Bell, Lock, Wrench, CheckCircle,
-  Phone, Mail, MapPin, Menu, X, ArrowRight,
-  Building2, ShoppingBag, Factory, Home as HomeIcon,
-  ChevronRight, Settings, Eye, Users, User, Radio,
-  Plus, Trash2, Edit3, Save, LogOut, BarChart3,
-  Key, FileText, Image as ImageIcon,
-  HardHat, Server, MonitorPlay, DoorClosed, MapPinned,
+  CheckCircle, Phone, Mail, MapPin, Menu, X, ArrowRight,
+  ChevronRight, User, Image as ImageIcon,
   PlayCircle, ChevronLeft, Maximize2,
 } from "lucide-react";
+import { api, type LeadInput } from "./api";
+import { AdminModal } from "./admin/AdminPanel";
+import {
+  DEFAULT_SITE, iconFor, mediaSrc, mergeSite,
+  type GalleryItem, type Page, type Project, type SiteData,
+} from "./siteData";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type Page = "home" | "instalacion" | "mantenimiento" | "proyectos" | "contacto";
-type AdminTab = "panel" | "leads" | "proyectos" | "contenido" | "settings";
+// ─── Contenido del sitio (servidor + caché local) ─────────────────────────────
+const SITE_CACHE_KEY = "luedmon_site_cache";
 
-interface Lead {
-  id: string; fecha: string; nombre: string; empresa: string;
-  correo: string; telefono: string; servicio: string; mensaje: string;
-  estado: "nuevo" | "en_proceso" | "cotizado";
-}
-
-interface Project {
-  id: string; title: string;
-  category: "residencial" | "comercial" | "industrial";
-  items: string; imageUrl: string;
-}
-
-interface SiteContent {
-  tagline: string; phone1: string; phone2: string;
-  email: string; address: string;
-  heroHeadline: string; heroSubHeadline: string; heroBody: string;
-  slide2Headline: string; slide3Headline: string; slide3Body: string;
-}
-
-interface AppState {
-  content: SiteContent;
-  projects: Project[];
-  leads: Lead[];
-  adminPassword: string;
-  adminFirstLogin: boolean;
-  credVersion?: number;
-}
-
-// Incrementar para forzar el restablecimiento de la contraseña guardada en el navegador
-const CRED_VERSION = 2;
-
-// ─── Defaults ────────────────────────────────────────────────────────────────
-const DEFAULT_CONTENT: SiteContent = {
-  tagline: "Instalación y Tecnologías en Seguridad",
-  phone1: "315-800-6089",
-  phone2: "311-218-1356",
-  email: "luedmonsatelital@gmail.com",
-  address: "Carrera 80D No. 8C - 31, Piso 3",
-  heroHeadline: "Protección Inteligente",
-  heroSubHeadline: "para lo que más importa",
-  heroBody: "Instalamos sistemas de videovigilancia CCTV, biometría, talanqueras, control de acceso y alarmas para residencias, empresas y comunidades en Colombia.",
-  slide2Headline: "Sistemas y Montajes de Alta Ingeniería",
-  slide3Headline: "Garantía de Continuidad Operativa 24/7",
-  slide3Body: "Evita fallas críticas duplicando la vida útil de tus equipos con revisiones técnicas semestrales certificadas.",
-};
-
-const DEFAULT_PROJECTS: Project[] = [
-  { id: "1", title: "Conjunto Residencial El Pinar", category: "residencial", items: "CCTV · Control de Acceso · Alarma", imageUrl: "/imagen 1.png" },
-  { id: "2", title: "Edificio Empresarial Centro Mayor", category: "comercial", items: "CCTV · Cerca Eléctrica · Alarma", imageUrl: "/imagen 10.png" },
-  { id: "3", title: "Planta Industrial Zona Franca", category: "industrial", items: "CCTV HD · Control de Acceso · Cerca Eléctrica", imageUrl: "/imagen 7.png" },
-  { id: "4", title: "Urbanización Villa del Sol", category: "residencial", items: "CCTV · Alarma Comunitaria · Videoportero", imageUrl: "/imagen 3.png" },
-  { id: "5", title: "Centro Comercial Multiplaza", category: "comercial", items: "CCTV · Control Vehicular · Alarmas", imageUrl: "/imagen 17.png" },
-  { id: "6", title: "Bodega Logística Norte", category: "industrial", items: "CCTV Exterior · Cerca Eléctrica · Control de Acceso", imageUrl: "/imagen 14.png" },
-];
-
-const DEFAULT_APP_STATE: AppState = {
-  content: DEFAULT_CONTENT,
-  projects: DEFAULT_PROJECTS,
-  leads: [],
-  adminPassword: "Luedmon2026",
-  adminFirstLogin: false,
-  credVersion: CRED_VERSION,
-};
-
-// ─── Persist Hook ──────────────────────────────────────────────────────────────
-function usePersistedState() {
-  const [state, setStateRaw] = useState<AppState>(() => {
-    try {
-      const s = localStorage.getItem("luedmon_v2");
-      if (!s) return DEFAULT_APP_STATE;
-      const parsed = JSON.parse(s) as Partial<AppState>;
-      if (parsed.credVersion !== CRED_VERSION) {
-        parsed.adminPassword = DEFAULT_APP_STATE.adminPassword;
-        parsed.adminFirstLogin = DEFAULT_APP_STATE.adminFirstLogin;
-        parsed.credVersion = CRED_VERSION;
-      }
-      return {
-        ...DEFAULT_APP_STATE,
-        ...parsed,
-        content: { ...DEFAULT_CONTENT, ...(parsed.content ?? {}) },
-        projects: parsed.projects ?? DEFAULT_PROJECTS,
-        leads: parsed.leads ?? [],
-      };
-    } catch {
-      return DEFAULT_APP_STATE;
-    }
+function useSite() {
+  const [site, setSite] = useState<SiteData>(() => {
+    try { return mergeSite(JSON.parse(localStorage.getItem(SITE_CACHE_KEY) ?? "null")); } catch { return DEFAULT_SITE; }
   });
-
-  const setState = useCallback((updater: (prev: AppState) => AppState) => {
-    setStateRaw(prev => {
-      const next = updater(prev);
-      try { localStorage.setItem("luedmon_v2", JSON.stringify(next)); } catch {}
-      return next;
-    });
+  const update = useCallback((next: SiteData) => {
+    setSite(next);
+    try { localStorage.setItem(SITE_CACHE_KEY, JSON.stringify(next)); } catch {}
   }, []);
-
-  return [state, setState] as const;
+  useEffect(() => {
+    api.getSite()
+      .then(data => update(mergeSite(data)))
+      .catch(() => { /* Sin servidor (p. ej. en desarrollo local): se usa el contenido predeterminado */ });
+  }, [update]);
+  return [site, update] as const;
 }
+
+const telHref = (phone: string) => `tel:+57${phone.replace(/[^\d]/g, "")}`;
+const NAV_PAGES: Page[] = ["home", "instalacion", "mantenimiento", "proyectos", "contacto"];
+const navItems = (t: SiteData["text"]) => NAV_PAGES.map(page => ({ page, label: t[`nav_${page}` as keyof SiteData["text"]] }));
 
 // ─── Custom Hooks ─────────────────────────────────────────────────────────────
 function useScrollReveal(threshold = 0.12) {
@@ -148,7 +69,7 @@ function useTypewriter(phrases: string[], speed = 90) {
   useEffect(() => {
     const id = setInterval(() => {
       if (s.current.wait) return;
-      const cur = phrases[s.current.p];
+      const cur = phrases[s.current.p % Math.max(phrases.length, 1)] ?? "";
       if (!s.current.del) {
         s.current.c++;
         setText(cur.slice(0, s.current.c));
@@ -161,7 +82,7 @@ function useTypewriter(phrases: string[], speed = 90) {
         setText(cur.slice(0, s.current.c));
         if (s.current.c === 0) {
           s.current.del = false;
-          s.current.p = (s.current.p + 1) % phrases.length;
+          s.current.p = (s.current.p + 1) % Math.max(phrases.length, 1);
         }
       }
     }, s.current.del ? speed * 0.45 : speed);
@@ -338,486 +259,10 @@ function ShieldLogo({ size = 44 }: { size?: number }) {
   );
 }
 
-// ─── Admin – Login ────────────────────────────────────────────────────────────
-function AdminLogin({ pw, onSuccess, onClose }: { pw: string; onSuccess: () => void; onClose: () => void }) {
-  const [u, setU] = useState(""); const [p, setP] = useState(""); const [err, setErr] = useState("");
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (u === "Admin" && p === pw) { onSuccess(); } else { setErr("Credenciales incorrectas."); }
-  };
-  const inp = "w-full px-4 py-3 rounded-xl outline-none text-sm";
-  const iStyle = { background: "rgba(0,242,255,.05)", border: "1px solid rgba(0,242,255,.2)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
-  return (
-    <div className="flex items-center justify-center h-full p-8">
-      <form onSubmit={submit} className="w-full max-w-xs space-y-4">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4"><ShieldLogo size={52} /></div>
-          <h2 className="text-2xl font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Acceso Sistema</h2>
-          <p className="text-sm mt-1" style={{ color: "#475569", fontFamily: "'Inter',sans-serif" }}>Panel de Administración LUEDMON</p>
-        </div>
-        {err && <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", color: "#fca5a5", fontFamily: "'Inter',sans-serif" }}>{err}</div>}
-        <input className={inp} style={iStyle} placeholder="Usuario" value={u} onChange={e => setU(e.target.value)} required autoComplete="username" />
-        <input type="password" className={inp} style={iStyle} placeholder="Contraseña" value={p} onChange={e => setP(e.target.value)} required autoComplete="current-password" />
-        <button type="submit" className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:brightness-110" style={{ background: "#00f2ff", color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-          Ingresar →
-        </button>
-        <button type="button" onClick={onClose} className="w-full text-sm py-2 transition-colors hover:text-slate-300" style={{ color: "#475569", fontFamily: "'Inter',sans-serif" }}>Cancelar</button>
-      </form>
-    </div>
-  );
-}
-
-// ─── Admin – Change Password ──────────────────────────────────────────────────
-function AdminChangePw({ onSave }: { onSave: (pw: string) => void }) {
-  const [p1, setP1] = useState(""); const [p2, setP2] = useState(""); const [err, setErr] = useState("");
-  const inp = "w-full px-4 py-3 rounded-xl outline-none text-sm";
-  const iStyle = { background: "rgba(0,242,255,.05)", border: "1px solid rgba(0,242,255,.2)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (p1.length < 8) return setErr("Mínimo 8 caracteres.");
-    if (p1 !== p2) return setErr("Las contraseñas no coinciden.");
-    onSave(p1);
-  };
-  return (
-    <div className="flex items-center justify-center h-full p-8">
-      <form onSubmit={submit} className="w-full max-w-xs space-y-4">
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(255,183,3,.1)", border: "1px solid rgba(255,183,3,.3)" }}>
-            <Key size={26} style={{ color: "#ffb703" }} />
-          </div>
-          <h2 className="text-xl font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Cambiar Contraseña</h2>
-          <p className="text-sm mt-1" style={{ color: "#475569", fontFamily: "'Inter',sans-serif" }}>Por seguridad, establezca una contraseña propia.</p>
-        </div>
-        {err && <div className="p-3 rounded-xl text-sm" style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", color: "#fca5a5" }}>{err}</div>}
-        <input type="password" className={inp} style={iStyle} placeholder="Nueva contraseña" value={p1} onChange={e => setP1(e.target.value)} required />
-        <input type="password" className={inp} style={iStyle} placeholder="Confirmar contraseña" value={p2} onChange={e => setP2(e.target.value)} required />
-        <button type="submit" className="w-full py-3 rounded-xl font-bold text-sm" style={{ background: "#ffb703", color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-          Guardar contraseña →
-        </button>
-      </form>
-    </div>
-  );
-}
-
-// ─── Admin – Dashboard ────────────────────────────────────────────────────────
-function AdminDashboard({
-  appState, setAppState, onClose,
-}: {
-  appState: AppState;
-  setAppState: (fn: (p: AppState) => AppState) => void;
-  onClose: () => void;
-}) {
-  const [tab, setTab] = useState<AdminTab>("panel");
-  const { content, projects, leads, adminPassword } = appState;
-
-  // ── Panel Tab ──
-  const PanelTab = () => {
-    const stats = [
-      { label: "Total Leads", value: leads.length, icon: FileText, color: "#00f2ff" },
-      { label: "Leads Nuevos", value: leads.filter(l => l.estado === "nuevo").length, icon: Bell, color: "#ffb703" },
-      { label: "Proyectos", value: projects.length, icon: ImageIcon, color: "#10b981" },
-      { label: "En Proceso", value: leads.filter(l => l.estado === "en_proceso").length, icon: Settings, color: "#8b5cf6" },
-    ];
-    return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Panel de Control</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map(s => (
-            <div key={s.label} className="p-5 rounded-2xl" style={{ background: "rgba(11,26,51,.7)", border: "1px solid rgba(0,242,255,.1)" }}>
-              <s.icon size={20} style={{ color: s.color, marginBottom: 10 }} />
-              <div className="text-3xl font-bold" style={{ color: s.color, fontFamily: "'JetBrains Mono',monospace" }}>{s.value}</div>
-              <div className="text-xs mt-1" style={{ color: "#64748b", fontFamily: "'Inter',sans-serif" }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-        {leads.length > 0 && (
-          <div>
-            <h3 className="text-sm font-bold mb-3" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>// ÚLTIMOS LEADS</h3>
-            <div className="space-y-2">
-              {leads.slice(-5).reverse().map(l => (
-                <div key={l.id} className="flex items-center justify-between p-4 rounded-xl" style={{ background: "rgba(11,26,51,.5)", border: "1px solid rgba(0,242,255,.07)" }}>
-                  <div>
-                    <div className="text-sm font-semibold" style={{ color: "#e2e8f0", fontFamily: "'Inter',sans-serif" }}>{l.nombre}</div>
-                    <div className="text-xs" style={{ color: "#475569", fontFamily: "'Inter',sans-serif" }}>{l.servicio} · {l.fecha}</div>
-                  </div>
-                  <LeadBadge estado={l.estado} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {leads.length === 0 && (
-          <div className="text-center py-12" style={{ color: "#334155" }}>
-            <BarChart3 size={32} className="mx-auto mb-3" />
-            <p className="text-sm" style={{ fontFamily: "'Inter',sans-serif" }}>No hay leads todavía. Los formularios enviados aparecerán aquí.</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ── Leads Tab ──
-  const LeadBadge = ({ estado }: { estado: Lead["estado"] }) => {
-    const cfg = {
-      nuevo: { bg: "rgba(0,242,255,.1)", color: "#00f2ff", label: "Nuevo" },
-      en_proceso: { bg: "rgba(255,183,3,.1)", color: "#ffb703", label: "En Proceso" },
-      cotizado: { bg: "rgba(16,185,129,.1)", color: "#10b981", label: "Cotizado" },
-    }[estado];
-    return <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: cfg.bg, color: cfg.color, fontFamily: "'JetBrains Mono',monospace" }}>{cfg.label}</span>;
-  };
-
-  const LeadsTab = () => {
-    const cycleEstado = (id: string) => {
-      setAppState(prev => ({
-        ...prev, leads: prev.leads.map(l => l.id === id ? {
-          ...l,
-          estado: l.estado === "nuevo" ? "en_proceso" : l.estado === "en_proceso" ? "cotizado" : "nuevo"
-        } : l)
-      }));
-    };
-    const deleteLead = (id: string) => setAppState(prev => ({ ...prev, leads: prev.leads.filter(l => l.id !== id) }));
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Leads y Cotizaciones</h2>
-          <span className="text-xs px-3 py-1.5 rounded-full" style={{ background: "rgba(0,242,255,.08)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{leads.length} registros</span>
-        </div>
-        {leads.length === 0 ? (
-          <div className="text-center py-16" style={{ color: "#334155" }}>
-            <FileText size={36} className="mx-auto mb-3" />
-            <p className="text-sm" style={{ fontFamily: "'Inter',sans-serif" }}>Aún no hay cotizaciones. Cuando alguien llene el formulario aparecerán aquí.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {leads.map(l => (
-              <div key={l.id} className="p-5 rounded-2xl" style={{ background: "rgba(11,26,51,.6)", border: "1px solid rgba(0,242,255,.09)" }}>
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-bold text-sm" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{l.nombre}</span>
-                      {l.empresa && <span className="text-xs" style={{ color: "#475569" }}>· {l.empresa}</span>}
-                      <LeadBadge estado={l.estado} />
-                    </div>
-                    <div className="flex gap-4 flex-wrap">
-                      <a href={`tel:${l.telefono}`} className="text-xs flex items-center gap-1 hover:text-cyan-300 transition-colors" style={{ color: "#00f2ff", fontFamily: "'Inter',sans-serif" }}><Phone size={12} />{l.telefono}</a>
-                      <a href={`mailto:${l.correo}`} className="text-xs flex items-center gap-1 hover:text-cyan-300 transition-colors" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}><Mail size={12} />{l.correo}</a>
-                    </div>
-                    <div className="text-xs" style={{ color: "#334155", fontFamily: "'Inter',sans-serif" }}>{l.servicio} · {l.fecha}</div>
-                    {l.mensaje && <p className="text-xs mt-1" style={{ color: "#64748b", fontFamily: "'Inter',sans-serif" }}>{l.mensaje}</p>}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => cycleEstado(l.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:brightness-110" style={{ background: "rgba(0,242,255,.1)", color: "#00f2ff", fontFamily: "'Inter',sans-serif" }}>
-                      Cambiar estado
-                    </button>
-                    <button onClick={() => deleteLead(l.id)} className="px-3 py-1.5 rounded-lg transition-all hover:brightness-110" style={{ background: "rgba(239,68,68,.1)", color: "#fca5a5" }}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ── Projects Tab ──
-  const ProyectosTab = () => {
-    const [editing, setEditing] = useState<Project | null>(null);
-    const [adding, setAdding] = useState(false);
-    const blank: Project = { id: "", title: "", category: "residencial", items: "", imageUrl: "" };
-    const [form, setForm] = useState<Project>(blank);
-    const inp = "w-full px-3 py-2.5 rounded-xl outline-none text-sm";
-    const iS = { background: "rgba(0,242,255,.04)", border: "1px solid rgba(0,242,255,.18)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
-
-    const saveProject = () => {
-      if (!form.title || !form.items) return;
-      setAppState(prev => {
-        const id = editing ? editing.id : Date.now().toString();
-        const updated = editing
-          ? prev.projects.map(p => p.id === id ? { ...form, id } : p)
-          : [...prev.projects, { ...form, id }];
-        return { ...prev, projects: updated };
-      });
-      setEditing(null); setAdding(false); setForm(blank);
-    };
-
-    const deleteProject = (id: string) => setAppState(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== id) }));
-
-    const startEdit = (p: Project) => { setEditing(p); setAdding(false); setForm({ ...p }); };
-    const startAdd = () => { setEditing(null); setAdding(true); setForm(blank); };
-
-    return (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Gestionar Proyectos</h2>
-          <button onClick={startAdd} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:brightness-110" style={{ background: "#00f2ff", color: "#060f1e", fontFamily: "'Inter',sans-serif" }}>
-            <Plus size={16} /> Nuevo Proyecto
-          </button>
-        </div>
-
-        {(adding || editing) && (
-          <div className="p-6 rounded-2xl space-y-3" style={{ background: "rgba(0,11,28,.8)", border: "1px solid rgba(0,242,255,.2)" }}>
-            <h3 className="text-sm font-bold mb-2" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
-              {editing ? "// EDITAR PROYECTO" : "// NUEVO PROYECTO"}
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input className={inp} style={iS} placeholder="Título del proyecto" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-              <select className={inp} style={{ ...iS, cursor: "pointer" }} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as Project["category"] }))}>
-                <option value="residencial">Residencial</option>
-                <option value="comercial">Comercial</option>
-                <option value="industrial">Industrial</option>
-              </select>
-              <input className={inp} style={iS} placeholder="Sistemas instalados (ej: CCTV · Alarma)" value={form.items} onChange={e => setForm(f => ({ ...f, items: e.target.value }))} />
-              <input className={inp} style={iS} placeholder="URL de imagen (Unsplash o similar)" value={form.imageUrl} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} />
-            </div>
-            <div className="flex gap-3 pt-1">
-              <button onClick={saveProject} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110" style={{ background: "#ffb703", color: "#060f1e", fontFamily: "'Inter',sans-serif" }}>
-                <Save size={15} /> Guardar
-              </button>
-              <button onClick={() => { setEditing(null); setAdding(false); }} className="px-4 py-2.5 rounded-xl text-sm transition-all hover:brightness-110" style={{ background: "rgba(255,255,255,.05)", color: "#94a3b8" }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map(p => (
-            <div key={p.id} className="rounded-2xl overflow-hidden relative group" style={{ border: "1px solid rgba(0,242,255,.09)" }}>
-              <div className="bg-slate-800" style={{ height: 140 }}>
-                {p.imageUrl && <img src={p.imageUrl} alt={p.title} className="w-full h-full object-cover opacity-60" />}
-              </div>
-              <div className="p-4" style={{ background: "rgba(11,26,51,.8)" }}>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase" style={{ background: "rgba(0,242,255,.1)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{p.category}</span>
-                <p className="text-sm font-bold mt-2" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{p.title}</p>
-                <p className="text-xs mt-1" style={{ color: "#475569", fontFamily: "'JetBrains Mono',monospace" }}>{p.items}</p>
-              </div>
-              <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => startEdit(p)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(0,242,255,.15)", color: "#00f2ff" }}><Edit3 size={14} /></button>
-                <button onClick={() => deleteProject(p.id)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(239,68,68,.15)", color: "#fca5a5" }}><Trash2 size={14} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // ── Contenido Tab ──
-  const ContenidoTab = () => {
-    const [local, setLocal] = useState({ ...content });
-    const [saved, setSaved] = useState(false);
-    const inp = "w-full px-3 py-2.5 rounded-xl outline-none text-sm";
-    const iS = { background: "rgba(0,242,255,.04)", border: "1px solid rgba(0,242,255,.18)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
-    const save = () => {
-      setAppState(prev => ({ ...prev, content: local }));
-      setSaved(true); setTimeout(() => setSaved(false), 2500);
-    };
-    const Field = ({ label, field }: { label: string; field: keyof SiteContent }) => (
-      <div>
-        <label className="text-xs font-semibold block mb-1.5" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{label}</label>
-        <input className={inp} style={iS} value={local[field]} onChange={e => setLocal(l => ({ ...l, [field]: e.target.value }))} />
-      </div>
-    );
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Gestionar Contenido</h2>
-          <button onClick={save} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:brightness-110" style={{ background: saved ? "#10b981" : "#ffb703", color: "#060f1e", fontFamily: "'Inter',sans-serif" }}>
-            <Save size={15} /> {saved ? "¡Guardado!" : "Guardar cambios"}
-          </button>
-        </div>
-        <p className="text-xs" style={{ color: "#475569", fontFamily: "'Inter',sans-serif" }}>
-          Los cambios se reflejan en tiempo real en el sitio web.
-        </p>
-
-        {/* Marca */}
-        <div className="p-5 rounded-2xl space-y-3" style={{ background: "rgba(11,26,51,.5)", border: "1px solid rgba(0,242,255,.08)" }}>
-          <p className="text-xs font-bold tracking-widest" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>// MARCA</p>
-          <Field label="Tagline / Eslogan" field="tagline" />
-        </div>
-
-        {/* Contacto */}
-        <div className="p-5 rounded-2xl space-y-3" style={{ background: "rgba(11,26,51,.5)", border: "1px solid rgba(0,242,255,.08)" }}>
-          <p className="text-xs font-bold tracking-widest" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>// DATOS DE CONTACTO</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="Teléfono Principal" field="phone1" />
-            <Field label="Teléfono Alterno" field="phone2" />
-            <Field label="Correo Electrónico" field="email" />
-            <Field label="Dirección" field="address" />
-          </div>
-        </div>
-
-        {/* Hero */}
-        <div className="p-5 rounded-2xl space-y-3" style={{ background: "rgba(11,26,51,.5)", border: "1px solid rgba(0,242,255,.08)" }}>
-          <p className="text-xs font-bold tracking-widest" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>// HERO - SLIDE 1</p>
-          <Field label="Título principal" field="heroHeadline" />
-          <Field label="Subtítulo" field="heroSubHeadline" />
-          <div>
-            <label className="text-xs font-semibold block mb-1.5" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>Descripción</label>
-            <textarea className={inp} style={iS} rows={3} value={local.heroBody} onChange={e => setLocal(l => ({ ...l, heroBody: e.target.value }))} />
-          </div>
-        </div>
-
-        {/* Slides 2-3 */}
-        <div className="p-5 rounded-2xl space-y-3" style={{ background: "rgba(11,26,51,.5)", border: "1px solid rgba(0,242,255,.08)" }}>
-          <p className="text-xs font-bold tracking-widest" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>// HERO - SLIDES 2 Y 3</p>
-          <Field label="Slide 2 – Título" field="slide2Headline" />
-          <Field label="Slide 3 – Título" field="slide3Headline" />
-          <div>
-            <label className="text-xs font-semibold block mb-1.5" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>Slide 3 – Descripción</label>
-            <textarea className={inp} style={iS} rows={3} value={local.slide3Body} onChange={e => setLocal(l => ({ ...l, slide3Body: e.target.value }))} />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Settings Tab ──
-  const SettingsTab = () => {
-    const [p1, setP1] = useState(""); const [p2, setP2] = useState(""); const [msg, setMsg] = useState("");
-    const save = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (p1.length < 8) return setMsg("Mínimo 8 caracteres.");
-      if (p1 !== p2) return setMsg("Las contraseñas no coinciden.");
-      setAppState(prev => ({ ...prev, adminPassword: p1 }));
-      setMsg("✓ Contraseña actualizada correctamente."); setP1(""); setP2("");
-    };
-    const inp = "w-full px-4 py-3 rounded-xl outline-none text-sm";
-    const iS = { background: "rgba(0,242,255,.05)", border: "1px solid rgba(0,242,255,.2)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
-    return (
-      <div className="max-w-sm space-y-5">
-        <h2 className="text-xl font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Configuración</h2>
-        <form onSubmit={save} className="space-y-4">
-          <p className="text-xs font-bold" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>// CAMBIAR CONTRASEÑA</p>
-          {msg && <div className="p-3 rounded-xl text-sm" style={{ background: msg.startsWith("✓") ? "rgba(16,185,129,.1)" : "rgba(239,68,68,.1)", border: msg.startsWith("✓") ? "1px solid rgba(16,185,129,.3)" : "1px solid rgba(239,68,68,.3)", color: msg.startsWith("✓") ? "#6ee7b7" : "#fca5a5", fontFamily: "'Inter',sans-serif" }}>{msg}</div>}
-          <input type="password" className={inp} style={iS} placeholder="Nueva contraseña" value={p1} onChange={e => setP1(e.target.value)} required />
-          <input type="password" className={inp} style={iS} placeholder="Confirmar contraseña" value={p2} onChange={e => setP2(e.target.value)} required />
-          <button type="submit" className="w-full py-3 rounded-xl font-bold text-sm" style={{ background: "#ffb703", color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-            Actualizar contraseña →
-          </button>
-        </form>
-      </div>
-    );
-  };
-
-  const TABS: { id: AdminTab; label: string; icon: typeof BarChart3 }[] = [
-    { id: "panel", label: "Panel", icon: BarChart3 },
-    { id: "leads", label: "Leads", icon: FileText },
-    { id: "proyectos", label: "Proyectos", icon: ImageIcon },
-    { id: "contenido", label: "Contenido", icon: Edit3 },
-    { id: "settings", label: "Configuración", icon: Key },
-  ];
-
-  return (
-    <div className="flex h-full">
-      {/* Sidebar */}
-      <div className="w-56 flex-shrink-0 flex flex-col" style={{ background: "rgba(4,12,24,.95)", borderRight: "1px solid rgba(0,242,255,.1)" }}>
-        <div className="p-5 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(0,242,255,.08)" }}>
-          <ShieldLogo size={28} />
-          <div>
-            <div className="text-xs font-bold tracking-widest" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>LUEDMON</div>
-            <div className="text-[9px] tracking-widest" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>ADMIN</div>
-          </div>
-        </div>
-        <nav className="flex-1 p-3 space-y-1">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
-              style={{
-                background: tab === t.id ? "rgba(0,242,255,.1)" : "transparent",
-                color: tab === t.id ? "#00f2ff" : "#475569",
-                fontFamily: "'Inter',sans-serif",
-              }}>
-              <t.icon size={16} />
-              {t.label}
-              {t.id === "leads" && leads.filter(l => l.estado === "nuevo").length > 0 && (
-                <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(255,183,3,.2)", color: "#ffb703", fontFamily: "'JetBrains Mono',monospace" }}>
-                  {leads.filter(l => l.estado === "nuevo").length}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="p-3">
-          <button onClick={onClose} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all hover:text-red-400" style={{ color: "#334155", fontFamily: "'Inter',sans-serif" }}>
-            <LogOut size={16} /> Cerrar sesión
-          </button>
-        </div>
-      </div>
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8" style={{ background: "rgba(6,15,30,.95)" }}>
-        {tab === "panel" && <PanelTab />}
-        {tab === "leads" && <LeadsTab />}
-        {tab === "proyectos" && <ProyectosTab />}
-        {tab === "contenido" && <ContenidoTab />}
-        {tab === "settings" && <SettingsTab />}
-      </div>
-    </div>
-  );
-}
-
-// ─── Admin Modal Orchestrator ─────────────────────────────────────────────────
-function AdminModal({ appState, setAppState, onClose }: {
-  appState: AppState; setAppState: (fn: (p: AppState) => AppState) => void; onClose: () => void;
-}) {
-  const [phase, setPhase] = useState<"login" | "changepw" | "dashboard">("login");
-  const [loggedIn, setLoggedIn] = useState(false);
-
-  const handleLoginSuccess = () => {
-    if (appState.adminFirstLogin) { setPhase("changepw"); } else { setPhase("dashboard"); }
-    setLoggedIn(true);
-  };
-
-  const handlePwSave = (pw: string) => {
-    setAppState(prev => ({ ...prev, adminPassword: pw, adminFirstLogin: false }));
-    setPhase("dashboard");
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-stretch" style={{ animation: "scaleIn .25s ease" }}>
-      {/* Backdrop */}
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,.85)", backdropFilter: "blur(10px)" }} onClick={phase === "login" ? onClose : undefined} />
-      {/* Panel */}
-      <div className="relative z-10 m-auto w-full flex flex-col" style={{
-        maxWidth: phase === "dashboard" ? "1100px" : "480px",
-        height: phase === "dashboard" ? "85vh" : "auto",
-        background: "#060f1e",
-        border: "1px solid rgba(0,242,255,.18)",
-        borderRadius: "1.5rem",
-        overflow: "hidden",
-        boxShadow: "0 30px 100px rgba(0,0,0,.8), 0 0 0 1px rgba(0,242,255,.05)",
-      }}>
-        {/* Close btn (top-right) */}
-        <button onClick={onClose} className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(255,255,255,.05)", color: "#64748b" }}>
-          <X size={18} />
-        </button>
-
-        {!loggedIn && (
-          <AdminLogin pw={appState.adminPassword} onSuccess={handleLoginSuccess} onClose={onClose} />
-        )}
-        {loggedIn && phase === "changepw" && <AdminChangePw onSave={handlePwSave} />}
-        {loggedIn && phase === "dashboard" && (
-          <AdminDashboard appState={appState} setAppState={setAppState} onClose={onClose} />
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Navbar ───────────────────────────────────────────────────────────────────
-const NAV_ITEMS: { label: string; page: Page }[] = [
-  { label: "Principal", page: "home" },
-  { label: "Instalación", page: "instalacion" },
-  { label: "Mantenimiento", page: "mantenimiento" },
-  { label: "Proyectos", page: "proyectos" },
-  { label: "Sede Central", page: "contacto" },
-];
-
-function Navbar({ activePage, setPage, tagline }: { activePage: Page; setPage: (p: Page) => void; tagline: string }) {
+function Navbar({ activePage, setPage, site }: { activePage: Page; setPage: (p: Page) => void; site: SiteData }) {
+  const t = site.text;
+  const NAV_ITEMS = navItems(t);
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -836,10 +281,10 @@ function Navbar({ activePage, setPage, tagline }: { activePage: Page; setPage: (
     }}>
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between" style={{ height: 72 }}>
         <button onClick={() => nav("home")} className="flex items-center gap-3">
-          <img src="/logo.png" alt="LUEDMON" className="h-12 w-auto brightness-0 invert" />
+          <img src={mediaSrc(site.media.logo)} alt={t.brandName} className="h-12 w-auto brightness-0 invert" />
           <div>
-            <div className="text-white font-bold uppercase text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>LUEDMON</div>
-            <div className="text-xs text-slate-300" style={{ fontFamily: "'Inter',sans-serif" }}>Seguridad satelital</div>
+            <div className="text-white font-bold uppercase text-lg" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.brandName}</div>
+            <div className="text-xs text-slate-300" style={{ fontFamily: "'Inter',sans-serif" }}>{t.brandSubtitle}</div>
           </div>
         </button>
         <nav className="hidden md:flex items-center gap-6">
@@ -853,12 +298,12 @@ function Navbar({ activePage, setPage, tagline }: { activePage: Page; setPage: (
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-3">
-          <a href="tel:+573158006089" className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:scale-105"
+          <a href={telHref(t.phone1)} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:scale-105"
             style={{ border: "1px solid rgba(0,242,255,.3)", color: "#00f2ff", fontFamily: "'Inter',sans-serif" }}>
-            <Phone size={13} /> 315 800 6089
+            <Phone size={13} /> {t.phone1.replace(/-/g, " ")}
           </a>
           <span className="text-[10px] font-bold px-2.5 py-1 rounded" style={{ background: "rgba(0,242,255,.08)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace", border: "1px solid rgba(0,242,255,.15)" }}>
-            ● EN LÍNEA
+            {t.navStatus}
           </span>
         </div>
         <button onClick={() => setOpen(!open)} className="md:hidden text-white p-2">{open ? <X size={22} /> : <Menu size={22} />}</button>
@@ -871,8 +316,8 @@ function Navbar({ activePage, setPage, tagline }: { activePage: Page; setPage: (
               {item.label}
             </button>
           ))}
-          <a href="tel:+573158006089" className="flex items-center gap-2 py-3 px-4 text-sm font-semibold" style={{ color: "#00f2ff" }}>
-            <Phone size={13} /> +57 315 800 6089
+          <a href={telHref(t.phone1)} className="flex items-center gap-2 py-3 px-4 text-sm font-semibold" style={{ color: "#00f2ff" }}>
+            <Phone size={13} /> +57 {t.phone1.replace(/-/g, " ")}
           </a>
         </div>
       )}
@@ -881,16 +326,17 @@ function Navbar({ activePage, setPage, tagline }: { activePage: Page; setPage: (
 }
 
 // ─── WhatsApp Float ───────────────────────────────────────────────────────────
-function WhatsAppFloat() {
+function WhatsAppFloat({ site }: { site: SiteData }) {
+  const t = site.text;
   const [hov, setHov] = useState(false);
   return (
     <div className="fixed bottom-7 right-7 z-50 flex items-center">
       {hov && (
         <div className="mr-3 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap" style={{ background: "rgba(6,15,30,.95)", border: "1px solid rgba(0,242,255,.2)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif", backdropFilter: "blur(12px)", animation: "fadeLeft .2s ease" }}>
-          Solicita tu cotización con LUEDMON
+          {t.whatsappTooltip}
         </div>
       )}
-      <a href="https://wa.me/573158006089?text=Hola%20LUEDMON%2C%20quiero%20solicitar%20una%20cotizaci%C3%B3n%20para%20mi%20proyecto." target="_blank" rel="noopener noreferrer"
+      <a href={`https://wa.me/${t.whatsappNumber.replace(/[^\d]/g, "")}?text=${encodeURIComponent(t.whatsappMessage)}`} target="_blank" rel="noopener noreferrer"
         onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
         className="relative flex items-center justify-center rounded-full shadow-2xl transition-transform duration-200 hover:scale-110"
         style={{ width: 56, height: 56, background: "#25d366" }}>
@@ -905,26 +351,28 @@ function WhatsAppFloat() {
 }
 
 // ─── Contact Form ─────────────────────────────────────────────────────────────
-const SVCS = ["Sistemas CCTV", "Control de Acceso / Biometría", "Alarmas Residenciales", "Alarmas Comunitarias", "Talanqueras / Puertas Automatizadas", "Cerca Eléctrica", "Videoportero", "Mantenimiento Preventivo", "Mantenimiento Correctivo"];
-
-function ContactForm({ compact = false, onLead }: { compact?: boolean; onLead?: (l: Lead) => void }) {
-  const [f, setF] = useState({ nombre: "", empresa: "", correo: "", telefono: "", servicio: "", mensaje: "" });
+function ContactForm({ compact = false, site }: { compact?: boolean; site: SiteData }) {
+  const t = site.text;
+  const [f, setF] = useState<LeadInput>({ nombre: "", empresa: "", correo: "", telefono: "", servicio: "", mensaje: "" });
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
   const inp = "w-full rounded-xl px-4 py-3 text-sm outline-none transition-all";
   const iS = { background: "rgba(0,242,255,.05)", border: "1px solid rgba(0,242,255,.18)", color: "#e2e8f0", fontFamily: "'Inter',sans-serif" };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const lead: Lead = {
-      id: Date.now().toString(),
-      fecha: new Date().toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" }),
-      ...f,
-      estado: "nuevo",
-    };
-    onLead?.(lead);
-    setSent(true);
-    setF({ nombre: "", empresa: "", correo: "", telefono: "", servicio: "", mensaje: "" });
-    setTimeout(() => setSent(false), 5000);
+    setSending(true); setError("");
+    try {
+      await api.submitLead(f);
+      setSent(true);
+      setF({ nombre: "", empresa: "", correo: "", telefono: "", servicio: "", mensaje: "" });
+      setTimeout(() => setSent(false), 5000);
+    } catch {
+      setError("No pudimos enviar su solicitud. Por favor escríbanos por WhatsApp o llámenos.");
+    } finally {
+      setSending(false);
+    }
   };
 
   const grid2 = compact ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2";
@@ -939,23 +387,25 @@ function ContactForm({ compact = false, onLead }: { compact?: boolean; onLead?: 
         <input className={inp} style={iS} type="tel" placeholder="Teléfono *" value={f.telefono} onChange={e => setF({ ...f, telefono: e.target.value })} required />
       </div>
       <select className={`${inp} text-slate-200`} style={{ ...iS, cursor: "pointer", color: "#e2e8f0" }} value={f.servicio} onChange={e => setF({ ...f, servicio: e.target.value })}>
-        <option value="" className="text-slate-200">Servicio de interés ▾</option>
-        {SVCS.map(s => <option key={s} value={s} className="text-slate-900">{s}</option>)}
+        <option value="" className="text-slate-200">{t.formServicePlaceholder}</option>
+        {site.formServices.map(s => <option key={s} value={s} className="text-slate-900">{s}</option>)}
       </select>
-      <textarea className={inp} style={iS} rows={compact ? 3 : 4} placeholder="Cuéntanos tu proyecto..." value={f.mensaje} onChange={e => setF({ ...f, mensaje: e.target.value })} />
-      <button type="submit" className="w-full py-4 rounded-xl font-bold text-sm tracking-wider uppercase transition-all hover:scale-[1.02] hover:brightness-110"
+      <textarea className={inp} style={iS} rows={compact ? 3 : 4} placeholder={t.formMessagePlaceholder} value={f.mensaje} onChange={e => setF({ ...f, mensaje: e.target.value })} />
+      {error && <p className="text-xs" style={{ color: "#fca5a5", fontFamily: "'Inter',sans-serif" }}>{error}</p>}
+      <button type="submit" disabled={sending} className="w-full py-4 rounded-xl font-bold text-sm tracking-wider uppercase transition-all hover:scale-[1.02] hover:brightness-110"
         style={{ background: sent ? "#10b981" : "#ffb703", color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-        {sent ? "✓ ¡Solicitud enviada! Le contactamos pronto." : "Solicitar Cotización Gratuita →"}
+        {sent ? t.formSuccess : sending ? "Enviando…" : t.formSubmit}
       </button>
     </form>
   );
 }
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
-function HeroSection({ content, onLead }: { content: SiteContent; onLead: (l: Lead) => void }) {
+function HeroSection({ site, setPage }: { site: SiteData; setPage: (p: Page) => void }) {
+  const t = site.text;
   const [active, setActive] = useState(0);
   const iRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const headline = useTypewriter([content.heroHeadline, content.slide2Headline.split(" ").slice(0, 3).join(" "), "Vigilancia Avanzada"], 90);
+  const headline = useTypewriter(site.heroPhrases.filter(Boolean), 90);
 
   const restart = useCallback(() => {
     if (iRef.current) clearInterval(iRef.current);
@@ -997,7 +447,7 @@ function HeroSection({ content, onLead }: { content: SiteContent; onLead: (l: Le
         {/* Left: Slider */}
         <div className="lg:col-span-3 relative" onMouseEnter={() => { if (iRef.current) clearInterval(iRef.current); }} onMouseLeave={restart}>
           <div className="relative overflow-hidden rounded-3xl" style={{ minHeight: 500, border: "1px solid rgba(0,242,255,.12)", background: "linear-gradient(135deg, rgba(11,26,51,.9) 0%, rgba(6,15,30,.95) 100%)", backdropFilter: "blur(8px)" }}>
-            <video src="/camaras.mp4" autoPlay loop muted playsInline aria-hidden="true" className="object-cover absolute inset-0 w-full h-full -z-10" style={{ opacity: 0.1 }} />
+            <video key={site.media.heroVideo} src={mediaSrc(site.media.heroVideo)} autoPlay loop muted playsInline aria-hidden="true" className="object-cover absolute inset-0 w-full h-full -z-10" style={{ opacity: 0.1 }} />
             {/* Corner brackets */}
             {[["top-0 left-0 border-l border-t", "rounded-tl-lg"], ["top-0 right-0 border-r border-t", "rounded-tr-lg"], ["bottom-0 left-0 border-l border-b", "rounded-bl-lg"], ["bottom-0 right-0 border-r border-b", "rounded-br-lg"]].map(([pos, r], i) => (
               <span key={i} className={`absolute w-6 h-6 ${pos} ${r}`} style={{ borderColor: "rgba(0,242,255,.4)" }} />
@@ -1007,27 +457,27 @@ function HeroSection({ content, onLead }: { content: SiteContent; onLead: (l: Le
               {active === 0 && (
                 <div className="space-y-5" style={{ animation: "fadeUp .5s ease" }}>
                   <div className="flex items-center gap-3 mb-6">
-                    <img src="/logo.png" alt="LUEDMON" className="h-16 w-auto brightness-0 invert" />
+                    <img src={mediaSrc(site.media.logo)} alt={t.brandName} className="h-16 w-auto brightness-0 invert" />
                     <div>
-                      <div className="text-3xl font-black tracking-widest text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>LUEDMON</div>
-                      <div className="text-xs text-slate-200" style={{ fontFamily: "'Inter',sans-serif" }}>Seguridad satelital</div>
+                      <div className="text-3xl font-black tracking-widest text-white" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.brandName}</div>
+                      <div className="text-xs text-slate-200" style={{ fontFamily: "'Inter',sans-serif" }}>{t.brandSubtitle}</div>
                     </div>
                   </div>
                   <div className="text-5xl md:text-6xl font-black leading-none" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                    <span className="anim-shimmer-text">{headline || "Protección"}</span>
+                    <span className="anim-shimmer-text">{headline || "\u00a0"}</span>
                     <span className="cursor-blink ml-1" style={{ color: "#00f2ff" }}>|</span>
                   </div>
-                  <div className="text-xl font-semibold text-slate-100" style={{ fontFamily: "'Inter',sans-serif" }}>{content.heroSubHeadline}</div>
-                  <p className="text-sm leading-relaxed max-w-md text-slate-100 font-medium" style={{ fontFamily: "'Inter',sans-serif" }}>{content.heroBody}</p>
+                  <div className="text-xl font-semibold text-slate-100" style={{ fontFamily: "'Inter',sans-serif" }}>{t.heroSubHeadline}</div>
+                  <p className="text-sm leading-relaxed max-w-md text-slate-100 font-medium" style={{ fontFamily: "'Inter',sans-serif" }}>{t.heroBody}</p>
                   <div className="flex gap-3 flex-wrap pt-2">
-                    <a href="tel:+573158006089" className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all hover:scale-105 hover:brightness-110"
+                    <a href={telHref(t.phone1)} className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all hover:scale-105 hover:brightness-110"
                       style={{ background: "#ffb703", color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                      <Phone size={15} /> Llamar ahora
+                      <Phone size={15} /> {t.heroCallBtn}
                     </a>
                     <button className="px-6 py-3 rounded-xl font-semibold text-sm transition-all hover:scale-105"
                       style={{ border: "1px solid rgba(0,242,255,.35)", color: "#00f2ff", fontFamily: "'Plus Jakarta Sans',sans-serif" }}
                       onClick={() => document.getElementById("contacto-form")?.scrollIntoView({ behavior: "smooth" })}>
-                      Cotizar gratis
+                      {t.heroQuoteBtn}
                     </button>
                   </div>
                 </div>
@@ -1035,37 +485,37 @@ function HeroSection({ content, onLead }: { content: SiteContent; onLead: (l: Le
 
               {active === 1 && (
                 <div className="space-y-6" style={{ animation: "fadeUp .5s ease" }}>
-                  <div className="text-xs font-bold tracking-[.2em] uppercase" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// INSTALACIÓN INTEGRADA</div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold leading-tight" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{content.slide2Headline}</h2>
+                  <div className="text-xs font-bold tracking-[.2em] uppercase" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.slide2Tag}</div>
+                  <h2 className="text-3xl md:text-4xl font-extrabold leading-tight" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.slide2Headline}</h2>
                   <div className="grid grid-cols-2 gap-3 mt-4">
-                    {[{ icon: Camera, label: "Cámaras CCTV" }, { icon: Lock, label: "Biometría y Acceso" }, { icon: Bell, label: "Alarmas Inteligentes" }, { icon: Zap, label: "Cerca Eléctrica" }].map(c => (
-                      <TiltCard key={c.label} className="flex items-center gap-3 p-4 rounded-2xl anim-border-pulse"
+                    {site.slide2Cards.map((c, i) => { const Icon = iconFor(c.icon); return (
+                      <TiltCard key={i} className="flex items-center gap-3 p-4 rounded-2xl anim-border-pulse"
                         style={{ background: "rgba(0,242,255,.04)", border: "1px solid rgba(0,242,255,.12)" }}>
-                        <c.icon size={20} style={{ color: "#00f2ff" }} />
+                        <Icon size={20} style={{ color: "#00f2ff" }} />
                         <span className="text-sm font-medium text-slate-100" style={{ fontFamily: "'Inter',sans-serif" }}>{c.label}</span>
                       </TiltCard>
-                    ))}
+                    ); })}
                   </div>
-                  <button className="px-6 py-3 rounded-xl font-bold text-sm hover:scale-105 transition-all"
+                  <button onClick={() => setPage("instalacion")} className="px-6 py-3 rounded-xl font-bold text-sm hover:scale-105 transition-all"
                     style={{ background: "#ffb703", color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                    Ver todos los servicios →
+                    {t.slide2Btn}
                   </button>
                 </div>
               )}
 
               {active === 2 && (
                 <div className="space-y-5" style={{ animation: "fadeUp .5s ease" }}>
-                  <div className="text-xs font-bold tracking-[.2em] uppercase" style={{ color: "#ffb703", fontFamily: "'JetBrains Mono',monospace" }}>// MANTENIMIENTO 24/7</div>
+                  <div className="text-xs font-bold tracking-[.2em] uppercase" style={{ color: "#ffb703", fontFamily: "'JetBrains Mono',monospace" }}>{t.slide3Tag}</div>
                   <h2 className="text-3xl md:text-4xl font-extrabold" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                    {content.slide3Headline.split(" ").slice(0, 3).join(" ")}<br />
-                    <span style={{ color: "#ffb703" }}>{content.slide3Headline.split(" ").slice(3).join(" ")}</span>
+                    {t.slide3Headline.split(" ").slice(0, 3).join(" ")}<br />
+                    <span style={{ color: "#ffb703" }}>{t.slide3Headline.split(" ").slice(3).join(" ")}</span>
                   </h2>
-                  <p className="text-sm leading-relaxed max-w-md text-slate-100 font-medium" style={{ fontFamily: "'Inter',sans-serif" }}>{content.slide3Body}</p>
+                  <p className="text-sm leading-relaxed max-w-md text-slate-100 font-medium" style={{ fontFamily: "'Inter',sans-serif" }}>{t.slide3Body}</p>
                   <div className="flex gap-8">
-                    {[{ v: "-45%", l: "Costos emergencia" }, { v: "2X", l: "Vida útil equipos" }, { v: "24/7", l: "Soporte activo" }].map(s => (
-                      <div key={s.v}>
-                        <div className="text-3xl font-bold" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{s.v}</div>
-                        <div className="text-xs mt-1" style={{ color: "rgba(226,232,240,.5)", fontFamily: "'Inter',sans-serif" }}>{s.l}</div>
+                    {site.slide3Stats.map((s, i) => (
+                      <div key={i}>
+                        <div className="text-3xl font-bold" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{s.value}</div>
+                        <div className="text-xs mt-1" style={{ color: "rgba(226,232,240,.5)", fontFamily: "'Inter',sans-serif" }}>{s.label}</div>
                       </div>
                     ))}
                   </div>
@@ -1089,9 +539,9 @@ function HeroSection({ content, onLead }: { content: SiteContent; onLead: (l: Le
             background: "rgba(11,26,51,.8)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
             border: "1px solid rgba(0,242,255,.14)", boxShadow: "0 8px 48px rgba(0,0,0,.5), inset 0 1px 0 rgba(0,242,255,.07)",
           }}>
-            <h3 className="text-lg font-bold text-white mb-1" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Solicita tu propuesta</h3>
-            <p className="text-xs mb-5" style={{ color: "rgba(226,232,240,.45)", fontFamily: "'Inter',sans-serif" }}>Sin costo. Respondemos en menos de 2h.</p>
-            <ContactForm compact onLead={onLead} />
+            <h3 className="text-lg font-bold text-white mb-1" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.heroFormTitle}</h3>
+            <p className="text-xs mb-5" style={{ color: "rgba(226,232,240,.45)", fontFamily: "'Inter',sans-serif" }}>{t.heroFormSubtitle}</p>
+            <ContactForm compact site={site} />
           </div>
         </div>
       </div>
@@ -1100,39 +550,33 @@ function HeroSection({ content, onLead }: { content: SiteContent; onLead: (l: Le
 }
 
 // ─── Sectors Section ──────────────────────────────────────────────────────────
-const SECTORS = [
-  { icon: Building2, title: "Propiedad Horizontal", desc: "Conjuntos, edificios y urbanizaciones con soluciones perimetrales de seguridad completas." },
-  { icon: Factory, title: "Sector Industrial", desc: "Bodegas y fábricas con CCTV HD, biometría de alta seguridad y cercas eléctricas." },
-  { icon: ShoppingBag, title: "Sector Comercial", desc: "Locales y centros comerciales protegidos con alarmas conectadas a app móvil." },
-  { icon: HomeIcon, title: "Entidades y Comunidades", desc: "Colegios, oficinas y barrios con alarmas comunitarias y videoporteros integrados." },
-];
-
-function SectoresSection() {
+function SectoresSection({ site }: { site: SiteData }) {
+  const t = site.text;
   return (
     <section className="py-24 px-6" style={{ background: "#ffffff" }}>
       <div className="max-w-7xl mx-auto">
         <Reveal className="text-center mb-14">
-          <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#0b1a33", fontFamily: "'JetBrains Mono',monospace" }}>// COBERTURA</div>
+          <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#0b1a33", fontFamily: "'JetBrains Mono',monospace" }}>{t.sectorsTag}</div>
           <h2 className="text-4xl font-extrabold" style={{ color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-            Soluciones para Cada Entorno
+            {t.sectorsTitle}
           </h2>
           <p className="mt-3 text-base max-w-xl mx-auto" style={{ color: "#475569", fontFamily: "'Inter',sans-serif" }}>
-            Más de una década protegiendo hogares, negocios e industrias en Colombia.
+            {t.sectorsSubtitle}
           </p>
         </Reveal>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {SECTORS.map((s, i) => (
-            <Reveal key={s.title} delay={i * 100}>
+          {site.sectors.map((s, i) => { const Icon = iconFor(s.icon); return (
+            <Reveal key={i} delay={i * 100}>
               <TiltCard className="group p-7 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl h-full"
                 style={{ background: "#f4f7fc", border: "1px solid #e2e8f0" }}>
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5 transition-colors duration-200 group-hover:bg-blue-100" style={{ background: "#e8f0fe" }}>
-                  <s.icon size={22} style={{ color: "#1565c0" }} />
+                  <Icon size={22} style={{ color: "#1565c0" }} />
                 </div>
                 <h3 className="font-bold text-base mb-2" style={{ color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{s.title}</h3>
                 <p className="text-sm leading-relaxed" style={{ color: "#64748b", fontFamily: "'Inter',sans-serif" }}>{s.desc}</p>
               </TiltCard>
             </Reveal>
-          ))}
+          ); })}
         </div>
       </div>
     </section>
@@ -1140,60 +584,58 @@ function SectoresSection() {
 }
 
 // ─── Stats Section ────────────────────────────────────────────────────────────
-const CHECKLIST_TABS = [
-  { label: "Puertas Vehiculares", items: ["Verificación de ruidos, engrase y velocidad de pluma", "Comprobación de partes mecánicas", "Verificar fotoceldas y bandas anti-aplastamiento", "Control de voltajes y consumos eléctricos"] },
-  { label: "Puertas Peatonales", items: ["Limpieza general del equipo y accesorios", "Calibración del recorrido de apertura y cierre", "Nivelación de hoja y accesorios mecánicos", "Comprobación y limpieza de lectores de acceso"] },
-  { label: "Cámaras CCTV", items: ["Verificación y ajuste de posicionamiento", "Revisión de lente, enfoque e iris automático", "Limpieza interior y exterior del dispositivo", "Comprobación de grabación y software"] },
-];
+function ImpactStat({ stat, color, visible }: { stat: SiteData["impactStats"][number]; color: string; visible: boolean }) {
+  const n = useCountUp(stat.value, 1800, visible);
+  return (
+    <div>
+      <div className="text-7xl font-black leading-none" style={{ color, fontFamily: "'JetBrains Mono',monospace" }}>
+        {stat.prefix}{n}{stat.suffix}
+      </div>
+      <div className="text-sm mt-2" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{stat.label}</div>
+    </div>
+  );
+}
 
-function StatsSection() {
+function StatsSection({ site }: { site: SiteData }) {
+  const t = site.text;
   const { ref, visible } = useScrollReveal();
   const [activeTab, setActiveTab] = useState(0);
-  const n1 = useCountUp(45, 1800, visible);
-  const n2 = useCountUp(2, 1800, visible);
+  const tabs = site.checklist;
+  const current = tabs[Math.min(activeTab, tabs.length - 1)];
 
   return (
     <section className="py-24 px-6" style={{ background: "#0b1a33" }}>
       <div ref={ref} className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
         <div className="space-y-8">
           <Reveal from="left">
-            <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// IMPACTO OPERATIVO</div>
-            <h2 className="text-4xl font-extrabold leading-tight" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-              Mantenimiento que<br />protege su inversión
+            <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.statsTag}</div>
+            <h2 className="text-4xl font-extrabold leading-tight whitespace-pre-line" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+              {t.statsTitle}
             </h2>
           </Reveal>
-          <div className="flex gap-10">
-            <div>
-              <div className="text-7xl font-black leading-none" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
-                -{n1}%
-              </div>
-              <div className="text-sm mt-2" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>en costos por daños de emergencia</div>
-            </div>
-            <div>
-              <div className="text-7xl font-black leading-none" style={{ color: "#ffb703", fontFamily: "'JetBrains Mono',monospace" }}>
-                {n2}X
-              </div>
-              <div className="text-sm mt-2" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>extensión vida útil de equipos</div>
-            </div>
+          <div className="flex gap-10 flex-wrap">
+            {site.impactStats.map((st, i) => (
+              <ImpactStat key={i} stat={st} color={i % 2 === 0 ? "#00f2ff" : "#ffb703"} visible={visible} />
+            ))}
           </div>
           <p className="text-sm leading-relaxed max-w-md" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>
-            Realizamos revisiones preventivas dos veces al año para extender la vida útil de sus equipos. Nuestros técnicos certificados responden fallas críticas en menos de 24 horas.
+            {t.statsBody}
           </p>
         </div>
         <Reveal from="right">
           <div className="rounded-3xl p-7" style={{ background: "rgba(6,15,30,.65)", border: "1px solid rgba(0,242,255,.12)", backdropFilter: "blur(12px)" }}>
-            <h3 className="text-sm font-bold mb-5" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Checklist de Inspección Semestral</h3>
+            <h3 className="text-sm font-bold mb-5" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.checklistTitle}</h3>
             <div className="flex gap-2 flex-wrap mb-5">
-              {CHECKLIST_TABS.map((t, i) => (
-                <button key={t.label} onClick={() => setActiveTab(i)} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              {tabs.map((tab, i) => (
+                <button key={i} onClick={() => setActiveTab(i)} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                   style={{ background: activeTab === i ? "#00f2ff" : "rgba(0,242,255,.06)", color: activeTab === i ? "#060f1e" : "rgba(226,232,240,.6)", border: "1px solid rgba(0,242,255,.18)", fontFamily: "'Inter',sans-serif" }}>
-                  {t.label}
+                  {tab.label}
                 </button>
               ))}
             </div>
             <ul className="space-y-3">
-              {CHECKLIST_TABS[activeTab].items.map(item => (
-                <li key={item} className="flex items-start gap-3">
+              {(current?.items ?? []).map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
                   <CheckCircle size={15} className="mt-0.5 flex-shrink-0" style={{ color: "#00f2ff" }} />
                   <span className="text-sm" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{item}</span>
                 </li>
@@ -1207,45 +649,37 @@ function StatsSection() {
 }
 
 // ─── Services Grid ────────────────────────────────────────────────────────────
-const SVC_CARDS = [
-  { icon: Camera, title: "Sistemas CCTV", desc: "Videovigilancia HD con grabación continua, visión nocturna y monitoreo remoto 24/7.", page: "instalacion" as Page },
-  { icon: Lock, title: "Control de Acceso", desc: "Biometría, talanqueras, lectoras de proximidad y torniquetes para peatones y vehículos.", page: "instalacion" as Page },
-  { icon: Bell, title: "Alarmas Inteligentes", desc: "Detección de intrusión con sensores de movimiento, contactos magnéticos y app móvil.", page: "instalacion" as Page },
-  { icon: Zap, title: "Cerca Eléctrica", desc: "Barreras perimetrales de alta tensión que disuaden y alertan ante cualquier intento de acceso.", page: "instalacion" as Page },
-  { icon: Wrench, title: "Mantenimiento Preventivo", desc: "Rutinas semestrales certificadas para mantener todos sus equipos al 100% de rendimiento.", page: "mantenimiento" as Page },
-  { icon: Settings, title: "Mantenimiento Correctivo", desc: "Diagnóstico y reparación inmediata de fallas críticas con garantía en el servicio.", page: "mantenimiento" as Page },
-];
-
-function ServicesGrid({ setPage }: { setPage: (p: Page) => void }) {
+function ServicesGrid({ site, setPage }: { site: SiteData; setPage: (p: Page) => void }) {
+  const t = site.text;
   return (
     <section className="py-24 px-6" style={{ background: "#ffffff" }}>
       <div className="max-w-7xl mx-auto">
         <Reveal className="flex flex-col md:flex-row md:items-end md:justify-between mb-12 gap-4">
           <div>
-            <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#0b1a33", fontFamily: "'JetBrains Mono',monospace" }}>// SERVICIOS</div>
-            <h2 className="text-4xl font-extrabold" style={{ color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Portafolio Completo</h2>
+            <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#0b1a33", fontFamily: "'JetBrains Mono',monospace" }}>{t.servicesTag}</div>
+            <h2 className="text-4xl font-extrabold" style={{ color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.servicesTitle}</h2>
           </div>
           <button onClick={() => setPage("contacto")} className="flex items-center gap-2 font-semibold text-sm transition-colors hover:underline" style={{ color: "#1565c0", fontFamily: "'Inter',sans-serif" }}>
-            Solicitar cotización <ArrowRight size={16} />
+            {t.servicesLink} <ArrowRight size={16} />
           </button>
         </Reveal>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {SVC_CARDS.map((s, i) => (
-            <Reveal key={s.title} delay={i * 80}>
+          {site.serviceCards.map((s, i) => { const Icon = iconFor(s.icon); return (
+            <Reveal key={i} delay={i * 80}>
               <TiltCard onClick={() => setPage(s.page)} className="group text-left p-7 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer h-full anim-border-pulse"
                 style={{ background: "#060f1e", border: "1px solid rgba(0,242,255,.08)" }}>
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-5 transition-all duration-200 group-hover:scale-110"
                   style={{ background: "rgba(0,242,255,.07)", border: "1px solid rgba(0,242,255,.14)" }}>
-                  <s.icon size={20} style={{ color: "#00f2ff" }} />
+                  <Icon size={20} style={{ color: "#00f2ff" }} />
                 </div>
                 <h3 className="font-bold text-base mb-2" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{s.title}</h3>
                 <p className="text-sm leading-relaxed" style={{ color: "#64748b", fontFamily: "'Inter',sans-serif" }}>{s.desc}</p>
                 <div className="flex items-center gap-1 mt-4 text-xs font-semibold transition-colors group-hover:text-white" style={{ color: "#00f2ff", fontFamily: "'Inter',sans-serif" }}>
-                  Ver detalle <ChevronRight size={14} />
+                  {t.servicesCardLink} <ChevronRight size={14} />
                 </div>
               </TiltCard>
             </Reveal>
-          ))}
+          ); })}
         </div>
       </div>
     </section>
@@ -1253,27 +687,28 @@ function ServicesGrid({ setPage }: { setPage: (p: Page) => void }) {
 }
 
 // ─── CTA Banner ───────────────────────────────────────────────────────────────
-function CTABanner({ setPage }: { setPage: (p: Page) => void }) {
+function CTABanner({ site, setPage }: { site: SiteData; setPage: (p: Page) => void }) {
+  const t = site.text;
   return (
     <section className="py-20 px-6 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #060f1e 0%, #0b1a33 50%, #060f1e 100%)" }}>
       <ParticleCanvas density={30} />
       <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 50% 50%, rgba(0,242,255,.05) 0%, transparent 65%)" }} />
       <Reveal className="relative z-10 max-w-3xl mx-auto text-center">
-        <div className="text-xs font-bold tracking-[.2em] uppercase mb-4" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// CONTÁCTENOS</div>
-        <h2 className="text-4xl md:text-5xl font-extrabold mb-4" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-          ¿Listo para blindar<br />lo que más importa?
+        <div className="text-xs font-bold tracking-[.2em] uppercase mb-4" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.ctaTag}</div>
+        <h2 className="text-4xl md:text-5xl font-extrabold mb-4 whitespace-pre-line" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          {t.ctaTitle}
         </h2>
         <p className="text-base mb-8 max-w-lg mx-auto" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>
-          Ingenieros certificados disponibles para visitar su propiedad y diseñar la solución de seguridad perfecta.
+          {t.ctaBody}
         </p>
         <div className="flex gap-4 justify-center flex-wrap">
           <button onClick={() => setPage("contacto")} className="px-8 py-4 rounded-xl font-bold text-sm transition-all hover:scale-105 hover:brightness-110"
             style={{ background: "#ffb703", color: "#060f1e", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-            Solicitar cotización →
+            {t.ctaButton}
           </button>
-          <a href="tel:+573158006089" className="px-8 py-4 rounded-xl font-bold text-sm transition-all hover:scale-105 flex items-center gap-2"
+          <a href={telHref(t.phone1)} className="px-8 py-4 rounded-xl font-bold text-sm transition-all hover:scale-105 flex items-center gap-2"
             style={{ border: "1px solid rgba(0,242,255,.35)", color: "#00f2ff", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-            <Phone size={16} /> 315 800 6089
+            <Phone size={16} /> {t.phone1.replace(/-/g, " ")}
           </a>
         </div>
       </Reveal>
@@ -1282,14 +717,14 @@ function CTABanner({ setPage }: { setPage: (p: Page) => void }) {
 }
 
 // ─── Home Page ────────────────────────────────────────────────────────────────
-function HomePage({ content, onLead, setPage }: { content: SiteContent; onLead: (l: Lead) => void; setPage: (p: Page) => void }) {
+function HomePage({ site, setPage }: { site: SiteData; setPage: (p: Page) => void }) {
   return (
     <>
-      <HeroSection content={content} onLead={onLead} />
-      <SectoresSection />
-      <StatsSection />
-      <ServicesGrid setPage={setPage} />
-      <CTABanner setPage={setPage} />
+      <HeroSection site={site} setPage={setPage} />
+      <SectoresSection site={site} />
+      <StatsSection site={site} />
+      <ServicesGrid site={site} setPage={setPage} />
+      <CTABanner site={site} setPage={setPage} />
     </>
   );
 }
@@ -1310,26 +745,18 @@ function PageHeader({ tag, title, subtitle }: { tag: string; title: string; subt
 }
 
 // ─── Instalación Page ─────────────────────────────────────────────────────────
-const INSTALL_SVCS = [
-  { icon: Camera, title: "CCTV – Circuito Cerrado de Televisión", tag: "CCTV", desc: "Sistemas de videovigilancia que supervisar, controlan y aseguran su propiedad las 24 horas. Grabación continua con acceso remoto desde cualquier dispositivo.", objectives: ["Registro exacto de todo evento o suceso", "Visualización remota desde celular o computador", "Pruebas claras utilizables como evidencia legal", "Prevención de robos y actos delincuenciales", "Supervisión permanente sin importar el horario"], imageUrl: "/imagen 8.png" },
-  { icon: Lock, title: "Control de Acceso y Biometría", tag: "ACCESO", desc: "Sistemas biométricos, talanqueras vehiculares y torniquetes peatonales para controlar el ingreso de personas y vehículos a su propiedad.", objectives: ["Identificación por huella dactilar, facial o tarjeta", "Control total del ingreso peatonal y vehicular", "Registro histórico de entradas y salidas", "Neutralización inmediata de accesos no autorizados", "Integración con cámaras y alarmas existentes"], imageUrl: "/imagen 3.png" },
-  { icon: Eye, title: "Automatización de Puertas", tag: "PUERTAS", desc: "Puertas vehiculares y peatonales automatizadas con sensores de movimiento para un control fluido, seguro y eficiente del acceso.", objectives: ["Apertura suave y controlada sin contacto manual", "Neutraliza ingreso de amenazas externas", "Reducción de accidentes en zonas de tráfico vehicular", "Integración con control de acceso biométrico", "Mayor comodidad y eficiencia operativa"], imageUrl: "/imagen 15.png" },
-  { icon: Bell, title: "Alarmas Residenciales y Comerciales", tag: "ALARMAS", desc: "Sistemas de detección con sensores de movimiento y cierres magnéticos que disparan sirenas y alertas inmediatas al celular mediante app móvil.", objectives: ["Aviso inmediato ante presencia de intrusos", "Detección de eventos atípicos en tiempo real", "Notificaciones a celulares programados vía app", "Disuasión efectiva de actos delictivos"], imageUrl: "/imagen 16.png" },
-  { icon: Radio, title: "Alarmas Comunitarias", tag: "COMUNIDAD", desc: "Red de alarmas interconectadas que protegen comunidades enteras. Se activan vía app móvil y advierten a todos los vecinos sobre emergencias en el área.", objectives: ["Reducción de la delincuencia en barrios", "Activación remota desde app móvil individual", "Alertas de emergencia en toda el área de cobertura", "Fomento de la seguridad colaborativa vecinal"], imageUrl: "/imagen 12.png" },
-  { icon: Zap, title: "Cercas Eléctricas", tag: "PERÍMETRO", desc: "Barreras físicas de alta tensión instaladas en el perímetro de su propiedad. Disuaden intrusos al instante y activan alarmas ante cualquier contacto.", objectives: ["Protección continua del perímetro los 365 días", "Detección inmediata de intento de penetración", "Disuasión psicológica efectiva para intrusos", "Calibración precisa de voltaje de seguridad"], imageUrl: "/imagen 11.png" },
-];
-
-function InstalacionPage({ setPage }: { setPage: (p: Page) => void }) {
+function InstalacionPage({ site, setPage }: { site: SiteData; setPage: (p: Page) => void }) {
+  const t = site.text;
   return (
     <>
-      <PageHeader tag="// INSTALACIÓN" title="Sistemas de Instalación Integrada" subtitle="Instalamos tecnología de punta para supervisar, controlar y proteger su hogar, empresa o comunidad." />
+      <PageHeader tag={t.instTag} title={t.instTitle} subtitle={t.instSubtitle} />
       <section className="py-16 px-6" style={{ background: "#060f1e" }}>
         <div className="max-w-7xl mx-auto space-y-20">
-          {INSTALL_SVCS.map((svc, i) => (
-            <Reveal key={svc.title} from={i % 2 === 0 ? "left" : "right"}>
+          {site.installServices.map((svc, i) => { const Icon = iconFor(svc.icon); return (
+            <Reveal key={i} from={i % 2 === 0 ? "left" : "right"}>
               <div className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${i % 2 === 1 ? "lg:[&>*:first-child]:order-2" : ""}`}>
                 <div className="relative rounded-2xl overflow-hidden bg-slate-800" style={{ aspectRatio: "16/10" }}>
-                  <img src={svc.imageUrl} alt={svc.title} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
+                  <img src={mediaSrc(svc.imageUrl)} alt={svc.title} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
                   <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(6,15,30,.75) 0%, transparent 60%)" }} />
                   <div className="absolute bottom-4 left-4">
                     <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "rgba(0,242,255,.12)", border: "1px solid rgba(0,242,255,.3)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{svc.tag}</span>
@@ -1337,14 +764,14 @@ function InstalacionPage({ setPage }: { setPage: (p: Page) => void }) {
                 </div>
                 <div className="space-y-5">
                   <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,242,255,.07)", border: "1px solid rgba(0,242,255,.14)" }}>
-                    <svc.icon size={20} style={{ color: "#00f2ff" }} />
+                    <Icon size={20} style={{ color: "#00f2ff" }} />
                   </div>
                   <h2 className="text-2xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{svc.title}</h2>
                   <p className="text-sm leading-relaxed" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{svc.desc}</p>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>Beneficios clave:</p>
-                    <ul className="space-y-2">{svc.objectives.map(o => (
-                      <li key={o} className="flex items-start gap-3">
+                    <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.instBenefitsLabel}</p>
+                    <ul className="space-y-2">{svc.objectives.map((o, j) => (
+                      <li key={j} className="flex items-start gap-3">
                         <CheckCircle size={14} className="mt-0.5 flex-shrink-0" style={{ color: "#00f2ff" }} />
                         <span className="text-sm" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{o}</span>
                       </li>
@@ -1353,44 +780,38 @@ function InstalacionPage({ setPage }: { setPage: (p: Page) => void }) {
                 </div>
               </div>
             </Reveal>
-          ))}
+          ); })}
         </div>
       </section>
-      <CTABanner setPage={setPage} />
+      <CTABanner site={site} setPage={setPage} />
     </>
   );
 }
 
 // ─── Mantenimiento Page ───────────────────────────────────────────────────────
-const MANT_CATS = [
-  { title: "Cámaras", icon: Camera, items: ["Verificación y ajuste de posicionamiento", "Revisión de lente, enfoque e iris automático", "Comprobación con controlador/software", "Limpieza interior y exterior", "Cambio de accesorios para mejoramiento"] },
-  { title: "Control de Acceso", icon: Lock, items: ["Comprobación de parámetros de controladoras", "Verificación de registros de acceso", "Engrase de elementos mecánicos", "Limpieza de lectores biométricos", "Revisión de cableado y alimentaciones"] },
-  { title: "Puertas Vehiculares", icon: Eye, items: ["Verificación de ruidos, engrase y pluma", "Comprobación de partes mecánicas", "Verificar fotoceldas y bandas de seguridad", "Chequeo de instalación eléctrica", "Control de voltajes y consumos"] },
-  { title: "Puertas Peatonales", icon: Users, items: ["Limpieza general del equipo", "Calibración de apertura y cierre", "Nivelación de hoja y accesorios mecánicos", "Comprobación de lectores de acceso", "Detección de anomalías en tornos"] },
-  { title: "Alarmas", icon: Bell, items: ["Revisión de sensores infrarrojos", "Mantenimiento de cierres magnéticos", "Revisión y mantenimiento de sirenas", "Central y discador de comunicación", "Revisión de batería y cableado"] },
-  { title: "Cerca Eléctrica", icon: Zap, items: ["Revisión y mantenimiento de la central", "Calibración de voltaje del sistema", "Revisión de postes y alambrado", "Ajuste de tensiómetro a las cuerdas", "Aislante de alambres perimetrales"] },
-];
+const MANT_COLORS = ["#00f2ff", "#ffb703"];
 
-function MantenimientoPage({ setPage }: { setPage: (p: Page) => void }) {
+function MantenimientoPage({ site, setPage }: { site: SiteData; setPage: (p: Page) => void }) {
+  const t = site.text;
   const [tab, setTab] = useState(0);
+  const cats = site.mantCategories;
+  const current = cats[Math.min(tab, cats.length - 1)];
+  const CurrentIcon = iconFor(current?.icon ?? "");
   return (
     <>
-      <PageHeader tag="// MANTENIMIENTO" title="Servicio Técnico Especializado" subtitle="Mantenimientos preventivos y correctivos para extender la vida útil de todos sus equipos de seguridad." />
+      <PageHeader tag={t.mantTag} title={t.mantTitle} subtitle={t.mantSubtitle} />
       <section className="py-16 px-6" style={{ background: "#060f1e" }}>
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-20">
-            {[
-              { type: "PREVENTIVO", color: "#00f2ff", icon: Shield, headline: "Mantenimientos Preventivos", body: "Realizados dos veces al año para extender la vida útil de sus equipos y prevenir fallas costosas.", stat: "2X", statLabel: "vida útil de equipos", imageUrl: "/imagen 13.jpg" },
-              { type: "CORRECTIVO", color: "#ffb703", icon: Wrench, headline: "Mantenimientos Correctivos", body: "Diagnóstico y reparación inmediata de fallas en equipos que han dejado de funcionar.", stat: "-45%", statLabel: "costos de emergencia", imageUrl: "/imagen 17.png" },
-            ].map((c, i) => (
-              <Reveal key={c.type} from={i === 0 ? "left" : "right"}>
+            {site.mantCards.map((card, i) => { const c = { ...card, color: MANT_COLORS[i % 2], Icon: iconFor(card.icon) }; return (
+              <Reveal key={i} from={i % 2 === 0 ? "left" : "right"}>
                 <TiltCard className="relative rounded-3xl overflow-hidden" style={{ border: `1px solid ${c.color}22`, minHeight: 280 }}>
                   <div className="absolute inset-0 bg-slate-900">
-                    <img src={c.imageUrl} alt={c.headline} className="w-full h-full object-cover opacity-25" />
+                    {c.imageUrl && <img src={mediaSrc(c.imageUrl)} alt={c.headline} className="w-full h-full object-cover opacity-25" />}
                   </div>
                   <div className="relative z-10 p-10">
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5" style={{ background: `${c.color}18`, border: `1px solid ${c.color}33` }}>
-                      <c.icon size={22} style={{ color: c.color }} />
+                      <c.Icon size={22} style={{ color: c.color }} />
                     </div>
                     <div className="text-xs font-bold tracking-[.2em] mb-2" style={{ color: c.color, fontFamily: "'JetBrains Mono',monospace" }}>{c.type}</div>
                     <h2 className="text-2xl font-extrabold mb-3" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{c.headline}</h2>
@@ -1402,32 +823,30 @@ function MantenimientoPage({ setPage }: { setPage: (p: Page) => void }) {
                   </div>
                 </TiltCard>
               </Reveal>
-            ))}
+            ); })}
           </div>
 
           <Reveal className="text-center mb-10">
-            <h2 className="text-3xl font-extrabold mb-2" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Protocolo por Equipo</h2>
-            <p className="text-sm" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>Seleccione el sistema para ver el protocolo de inspección completo.</p>
+            <h2 className="text-3xl font-extrabold mb-2" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.mantProtocolTitle}</h2>
+            <p className="text-sm" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{t.mantProtocolSubtitle}</p>
           </Reveal>
           <div className="flex flex-wrap gap-2 justify-center mb-8">
-            {MANT_CATS.map((c, i) => (
-              <button key={c.title} onClick={() => setTab(i)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            {cats.map((c, i) => { const Icon = iconFor(c.icon); return (
+              <button key={i} onClick={() => setTab(i)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
                 style={{ background: tab === i ? "#00f2ff" : "rgba(0,242,255,.06)", color: tab === i ? "#060f1e" : "rgba(226,232,240,.7)", border: `1px solid ${tab === i ? "#00f2ff" : "rgba(0,242,255,.15)"}`, fontFamily: "'Inter',sans-serif" }}>
-                <c.icon size={14} />{c.title}
+                <Icon size={14} />{c.title}
               </button>
-            ))}
+            ); })}
           </div>
           <Reveal>
             <div className="max-w-2xl mx-auto rounded-3xl p-8" style={{ background: "rgba(11,26,51,.65)", border: "1px solid rgba(0,242,255,.12)", backdropFilter: "blur(12px)" }}>
-              {(() => { const C = MANT_CATS[tab].icon; return (
-                <div className="flex items-center gap-3 mb-6">
-                  <C size={22} style={{ color: "#00f2ff" }} />
-                  <h3 className="text-lg font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Mantenimiento: {MANT_CATS[tab].title}</h3>
-                </div>
-              ); })()}
+              <div className="flex items-center gap-3 mb-6">
+                <CurrentIcon size={22} style={{ color: "#00f2ff" }} />
+                <h3 className="text-lg font-bold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.mantProtocolPrefix} {current?.title}</h3>
+              </div>
               <ul className="space-y-3">
-                {MANT_CATS[tab].items.map(item => (
-                  <li key={item} className="flex items-start gap-3 py-2" style={{ borderBottom: "1px solid rgba(0,242,255,.05)" }}>
+                {(current?.items ?? []).map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 py-2" style={{ borderBottom: "1px solid rgba(0,242,255,.05)" }}>
                     <CheckCircle size={15} className="mt-0.5 flex-shrink-0" style={{ color: "#00f2ff" }} />
                     <span className="text-sm" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{item}</span>
                   </li>
@@ -1437,61 +856,19 @@ function MantenimientoPage({ setPage }: { setPage: (p: Page) => void }) {
           </Reveal>
         </div>
       </section>
-      <CTABanner setPage={setPage} />
+      <CTABanner site={site} setPage={setPage} />
     </>
   );
 }
 
 // ─── Galería Técnica (Portafolio Interactivo) ────────────────────────────────
-type GalleryCategoryId = "alturas" | "redes" | "control" | "acceso" | "cobertura";
-
-interface GalleryCategory { id: GalleryCategoryId; label: string; icon: typeof HardHat }
-
-const GALLERY_CATEGORIES: GalleryCategory[] = [
-  { id: "alturas", label: "Alturas & Fachadas", icon: HardHat },
-  { id: "redes", label: "Redes & CCTV", icon: Server },
-  { id: "control", label: "Centro de Monitoreo", icon: MonitorPlay },
-  { id: "acceso", label: "Control de Acceso", icon: DoorClosed },
-  { id: "cobertura", label: "Cobertura Bogotá", icon: MapPinned },
-];
-
-interface GalleryItem { id: string; src: string; category: GalleryCategoryId; alt: string; size: "big" | "wide" | "normal" }
-
-const GALLERY_ITEMS: GalleryItem[] = [
-  { id: "g1", src: "/imagen 1.png", category: "alturas", size: "big", alt: "Técnico de LUEDMON realizando cableado estructurado en la fachada alta de un edificio residencial en Bogotá" },
-  { id: "g2", src: "/imagen 2.png", category: "alturas", size: "normal", alt: "Instalación de cableado y tuberías de seguridad electrónica a nivel de piso en exteriores" },
-  { id: "g13", src: "/imagen 13.jpg", category: "alturas", size: "wide", alt: "Técnico de alturas verificando la parte alta de la fachada de una infraestructura protegida" },
-
-  { id: "g6", src: "/imagen 6.png", category: "redes", size: "big", alt: "Técnico configurando rack de comunicaciones con cableado estructurado y switches de red de gran escala" },
-  { id: "g17", src: "/imagen 17.png", category: "redes", size: "normal", alt: "Revisión técnica de rack de servidores y equipos de red para CCTV" },
-  { id: "g7", src: "/imagen 7.png", category: "redes", size: "normal", alt: "Ajuste de soporte metálico para montaje de equipos de videovigilancia" },
-  { id: "g11", src: "/imagen 11.png", category: "redes", size: "wide", alt: "Conexiones eléctricas y electrónicas en caja de paso del sistema de seguridad" },
-
-  { id: "g8", src: "/imagen 8.png", category: "control", size: "big", alt: "Operario de LUEDMON en centro de control con monitoreo de cámaras 24/7" },
-  { id: "g16", src: "/imagen 16.png", category: "control", size: "wide", alt: "Estación de monitoreo con mapa digital y flujos de cámaras de seguridad en tiempo real" },
-
-  { id: "g3", src: "/imagen 3.png", category: "acceso", size: "big", alt: "Instalación de brazo de talanquera vehicular automática en parqueadero" },
-  { id: "g4", src: "/imagen 4.png", category: "acceso", size: "normal", alt: "Ajuste del sistema interior del gabinete de una talanquera automática" },
-  { id: "g14", src: "/imagen 14.png", category: "acceso", size: "normal", alt: "Adecuación de obra civil con malla de refuerzo en rampa de acceso vehicular" },
-  { id: "g15", src: "/imagen 15.png", category: "acceso", size: "wide", alt: "Vista general de rampa y pasillo técnico de acceso vehicular bajo supervisión" },
-
-  { id: "g9", src: "/imagen 9.png", category: "cobertura", size: "big", alt: "Fijación de tuberías metálicas en el techo de una infraestructura de seguridad" },
-  { id: "g10", src: "/imagen 10.png", category: "cobertura", size: "normal", alt: "Acceso peatonal con equipos de control de acceso integrados en copropiedad de Bogotá" },
-  { id: "g12", src: "/imagen 12.png", category: "cobertura", size: "wide", alt: "Técnicos de LUEDMON coordinando instalación de seguridad electrónica en entorno urbano de Bogotá" },
-];
-
-const GALLERY_VIDEOS = [
-  { id: "v1", src: encodeURI("/VID-20240921-WA0005.mp4"), label: "Instalación en sitio", desc: "Caso de éxito en video" },
-  { id: "v2", src: encodeURI("/WhatsApp Video 2026-01-10 at 8.55.30 AM.mp4"), label: "Puesta en marcha", desc: "Sistema de seguridad operativo" },
-];
-
 const GALLERY_SIZE_CLASSES: Record<GalleryItem["size"], string> = {
   big: "col-span-2 row-span-2",
   wide: "col-span-2 row-span-1",
   normal: "col-span-1 row-span-1",
 };
 
-function GalleryLightbox({ items, index, onClose, onNav }: { items: GalleryItem[]; index: number; onClose: () => void; onNav: (i: number) => void }) {
+function GalleryLightbox({ site, items, index, onClose, onNav }: { site: SiteData; items: GalleryItem[]; index: number; onClose: () => void; onNav: (i: number) => void }) {
   const item = items[index];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1504,7 +881,8 @@ function GalleryLightbox({ items, index, onClose, onNav }: { items: GalleryItem[
   }, [index, items.length, onClose, onNav]);
 
   if (!item) return null;
-  const cat = GALLERY_CATEGORIES.find(c => c.id === item.category)!;
+  const cat = site.galleryCategories.find(c => c.id === item.category);
+  const CatIcon = iconFor(cat?.icon ?? "");
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-8" style={{ animation: "scaleIn .2s ease" }}>
@@ -1520,12 +898,12 @@ function GalleryLightbox({ items, index, onClose, onNav }: { items: GalleryItem[
       </button>
       <div className="relative z-10 max-w-4xl w-full" onClick={e => e.stopPropagation()}>
         <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(0,242,255,.18)", boxShadow: "0 30px 100px rgba(0,0,0,.7)" }}>
-          <img src={item.src} alt={item.alt} className="w-full max-h-[70vh] object-contain" style={{ background: "#000" }} />
+          <img src={mediaSrc(item.src)} alt={item.alt} className="w-full max-h-[70vh] object-contain" style={{ background: "#000" }} />
         </div>
         <div className="mt-4 flex items-center gap-3 justify-center text-center flex-wrap">
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded uppercase flex items-center gap-1.5" style={{ background: "rgba(0,242,255,.12)", border: "1px solid rgba(0,242,255,.3)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
-            <cat.icon size={11} />{cat.label}
-          </span>
+          {cat && <span className="text-[10px] font-bold px-2.5 py-1 rounded uppercase flex items-center gap-1.5" style={{ background: "rgba(0,242,255,.12)", border: "1px solid rgba(0,242,255,.3)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
+            <CatIcon size={11} />{cat.label}
+          </span>}
           <span className="text-xs" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>{index + 1} / {items.length}</span>
         </div>
         <p className="mt-2 text-sm text-center max-w-xl mx-auto" style={{ color: "#e2e8f0", fontFamily: "'Inter',sans-serif" }}>{item.alt}</p>
@@ -1548,7 +926,7 @@ function VideoLightbox({ src, label, onClose }: { src: string; label: string; on
       </button>
       <div className="relative z-10 max-w-3xl w-full" onClick={e => e.stopPropagation()}>
         <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(0,242,255,.18)", boxShadow: "0 30px 100px rgba(0,0,0,.7)" }}>
-          <video src={src} controls autoPlay playsInline className="w-full max-h-[70vh]" style={{ background: "#000" }} />
+          <video src={mediaSrc(src)} controls autoPlay playsInline className="w-full max-h-[70vh]" style={{ background: "#000" }} />
         </div>
         <p className="mt-4 text-sm text-center" style={{ color: "#e2e8f0", fontFamily: "'Inter',sans-serif" }}>{label}</p>
       </div>
@@ -1561,7 +939,7 @@ function VideoCard({ src, label, desc }: { src: string; label: string; desc: str
   return (
     <>
       <TiltCard onClick={() => setOpen(true)} className="group relative rounded-2xl overflow-hidden cursor-pointer" style={{ aspectRatio: "16/9", border: "1px solid rgba(0,242,255,.14)" }}>
-        <video src={src} muted loop autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-45 transition-opacity duration-300 group-hover:opacity-65" />
+        <video src={mediaSrc(src)} muted loop autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-45 transition-opacity duration-300 group-hover:opacity-65" />
         <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(6,15,30,.92) 10%, rgba(6,15,30,.3) 60%, rgba(6,15,30,.5) 100%)" }} />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-16 h-16 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110" style={{ background: "rgba(0,242,255,.16)", border: "1px solid rgba(0,242,255,.4)", backdropFilter: "blur(4px)" }}>
@@ -1579,53 +957,56 @@ function VideoCard({ src, label, desc }: { src: string; label: string; desc: str
   );
 }
 
-function GallerySection() {
-  const [filter, setFilter] = useState<"todos" | GalleryCategoryId>("todos");
+function GallerySection({ site }: { site: SiteData }) {
+  const t = site.text;
+  const [filter, setFilter] = useState("todos");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const filtered = filter === "todos" ? GALLERY_ITEMS : GALLERY_ITEMS.filter(i => i.category === filter);
+  const items = site.galleryItems.filter(i => i.src);
+  const filtered = filter === "todos" ? items : items.filter(i => i.category === filter);
 
   return (
     <section className="py-16 px-6" style={{ background: "#060f1e" }}>
       <div className="max-w-7xl mx-auto">
         <Reveal className="text-center mb-10">
-          <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// GALERÍA </div>
-          <h2 className="text-3xl md:text-4xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Trabajo en Terreno — Bogotá</h2>
-          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>Registro fotográfico de nuestras instalaciones: alturas, redes, monitoreo, control de acceso y cobertura en Bogotá.</p>
+          <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.galleryTag}</div>
+          <h2 className="text-3xl md:text-4xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.galleryTitle}</h2>
+          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>{t.gallerySubtitle}</p>
         </Reveal>
 
         {/* Filter tabs */}
         <div className="flex gap-2 justify-center mb-10 flex-wrap">
           <button onClick={() => setFilter("todos")} className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all"
             style={{ background: filter === "todos" ? "#00f2ff" : "rgba(0,242,255,.07)", color: filter === "todos" ? "#060f1e" : "rgba(226,232,240,.7)", border: `1px solid ${filter === "todos" ? "#00f2ff" : "rgba(0,242,255,.18)"}`, fontFamily: "'Inter',sans-serif" }}>
-            Todos
+            {t.galleryAllLabel}
           </button>
-          {GALLERY_CATEGORIES.map(c => (
+          {site.galleryCategories.map(c => { const Icon = iconFor(c.icon); return (
             <button key={c.id} onClick={() => setFilter(c.id)} className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold transition-all"
               style={{ background: filter === c.id ? "#00f2ff" : "rgba(0,242,255,.07)", color: filter === c.id ? "#060f1e" : "rgba(226,232,240,.7)", border: `1px solid ${filter === c.id ? "#00f2ff" : "rgba(0,242,255,.18)"}`, fontFamily: "'Inter',sans-serif" }}>
-              <c.icon size={14} />{c.label}
+              <Icon size={14} />{c.label}
             </button>
-          ))}
+          ); })}
         </div>
 
         {/* Bento grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 grid-flow-row-dense gap-3 sm:gap-4 auto-rows-[150px] sm:auto-rows-[180px] lg:auto-rows-[210px]">
           {filtered.map((item, i) => {
-            const cat = GALLERY_CATEGORIES.find(c => c.id === item.category)!;
+            const cat = site.galleryCategories.find(c => c.id === item.category);
+            const CatIcon = iconFor(cat?.icon ?? "");
             return (
               <Reveal key={item.id} delay={(i % 8) * 45} className={GALLERY_SIZE_CLASSES[item.size]}>
                 <TiltCard onClick={() => setLightboxIndex(i)} className="group relative w-full h-full rounded-2xl overflow-hidden cursor-pointer" style={{ border: "1px solid rgba(0,242,255,.1)" }}>
-                  <img src={item.src} alt={item.alt} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  <img src={mediaSrc(item.src)} alt={item.alt} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: "linear-gradient(to top, rgba(6,15,30,.95) 0%, rgba(6,15,30,.15) 55%, transparent 100%)" }} />
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "rgba(0,242,255,.18)", border: "1px solid rgba(0,242,255,.4)", backdropFilter: "blur(4px)" }}>
                       <Maximize2 size={16} style={{ color: "#00f2ff" }} />
                     </div>
                   </div>
-                  <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-1 group-hover:translate-y-0">
+                  {cat && <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-1 group-hover:translate-y-0">
                     <span className="text-[9px] font-bold px-2 py-0.5 rounded uppercase inline-flex items-center gap-1" style={{ background: "rgba(0,242,255,.16)", border: "1px solid rgba(0,242,255,.35)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
-                      <cat.icon size={9} />{cat.label}
+                      <CatIcon size={9} />{cat.label}
                     </span>
-                  </div>
+                  </div>}
                 </TiltCard>
               </Reveal>
             );
@@ -1635,61 +1016,62 @@ function GallerySection() {
         {/* Videos complementarios */}
         <div className="mt-16">
           <Reveal className="text-center mb-8">
-            <div className="text-xs font-bold tracking-[.2em] uppercase mb-2" style={{ color: "#ffb703", fontFamily: "'JetBrains Mono',monospace" }}>// CASOS EN VIDEO</div>
-            <h3 className="text-2xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Véalo en Acción</h3>
+            <div className="text-xs font-bold tracking-[.2em] uppercase mb-2" style={{ color: "#ffb703", fontFamily: "'JetBrains Mono',monospace" }}>{t.videosTag}</div>
+            <h3 className="text-2xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.videosTitle}</h3>
           </Reveal>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
-            {GALLERY_VIDEOS.map(v => <VideoCard key={v.id} src={v.src} label={v.label} desc={v.desc} />)}
+            {site.galleryVideos.filter(v => v.src).map(v => <VideoCard key={v.id} src={v.src} label={v.label} desc={v.desc} />)}
           </div>
         </div>
       </div>
 
       {lightboxIndex !== null && (
-        <GalleryLightbox items={filtered} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNav={setLightboxIndex} />
+        <GalleryLightbox site={site} items={filtered} index={lightboxIndex} onClose={() => setLightboxIndex(null)} onNav={setLightboxIndex} />
       )}
     </section>
   );
 }
 
 // ─── Proyectos Page ───────────────────────────────────────────────────────────
-const CAT_LABELS: Record<string, string> = { residencial: "Residencial", comercial: "Comercial", industrial: "Industrial" };
-
-function ProyectosPage({ projects, setPage }: { projects: Project[]; setPage: (p: Page) => void }) {
+function ProyectosPage({ site, setPage }: { site: SiteData; setPage: (p: Page) => void }) {
+  const t = site.text;
+  const projects: Project[] = site.projects;
+  const catLabel = (c: string) => t[`cat_${c}` as keyof SiteData["text"]] ?? c;
   const [filter, setFilter] = useState("todos");
   const filtered = filter === "todos" ? projects : projects.filter(p => p.category === filter);
   return (
     <>
-      <PageHeader tag="// PROYECTOS" title="Casos de Éxito" subtitle="Proyectos de instalación y mantenimiento en los sectores residencial, comercial e industrial de Colombia." />
-      <GallerySection />
+      <PageHeader tag={t.projTag} title={t.projTitle} subtitle={t.projSubtitle} />
+      <GallerySection site={site} />
       <section className="py-16 px-6" style={{ background: "#0b1a33" }}>
         <div className="max-w-7xl mx-auto">
           <Reveal className="text-center mb-12">
-            <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// PORTAFOLIO</div>
-            <h2 className="text-3xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Proyectos por Sector</h2>
+            <div className="text-xs font-bold tracking-[.2em] uppercase mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.portfolioTag}</div>
+            <h2 className="text-3xl font-extrabold" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.portfolioTitle}</h2>
           </Reveal>
           <div className="flex gap-3 justify-center mb-12 flex-wrap">
             {["todos", "residencial", "comercial", "industrial"].map(cat => (
               <button key={cat} onClick={() => setFilter(cat)} className="px-5 py-2.5 rounded-full text-sm font-semibold capitalize transition-all"
                 style={{ background: filter === cat ? "#00f2ff" : "rgba(0,242,255,.07)", color: filter === cat ? "#060f1e" : "rgba(226,232,240,.7)", border: `1px solid ${filter === cat ? "#00f2ff" : "rgba(0,242,255,.18)"}`, fontFamily: "'Inter',sans-serif" }}>
-                {cat === "todos" ? "Todos" : CAT_LABELS[cat]}
+                {cat === "todos" ? t.galleryAllLabel : catLabel(cat)}
               </button>
             ))}
           </div>
           {filtered.length === 0 ? (
             <div className="text-center py-20" style={{ color: "#334155" }}>
               <ImageIcon size={40} className="mx-auto mb-4" />
-              <p style={{ fontFamily: "'Inter',sans-serif" }}>No hay proyectos en esta categoría todavía.</p>
+              <p style={{ fontFamily: "'Inter',sans-serif" }}>{t.portfolioEmpty}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filtered.map((p, i) => (
                 <Reveal key={p.id} delay={i * 60}>
                   <TiltCard className="group relative rounded-2xl overflow-hidden bg-slate-800 cursor-default" style={{ aspectRatio: "4/3" }}>
-                    <img src={p.imageUrl} alt={p.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    {p.imageUrl && <img src={mediaSrc(p.imageUrl)} alt={p.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />}
                     <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(6,15,30,.96) 0%, rgba(6,15,30,.4) 55%, transparent 100%)" }} />
                     <div className="absolute bottom-0 left-0 right-0 p-6">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase" style={{ background: "rgba(0,242,255,.14)", border: "1px solid rgba(0,242,255,.3)", color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>
-                        {p.category}
+                        {catLabel(p.category)}
                       </span>
                       <h3 className="text-base font-bold mt-2 mb-1" style={{ color: "white", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{p.title}</h3>
                       <p className="text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>{p.items}</p>
@@ -1701,30 +1083,31 @@ function ProyectosPage({ projects, setPage }: { projects: Project[]; setPage: (p
           )}
         </div>
       </section>
-      <CTABanner setPage={setPage} />
+      <CTABanner site={site} setPage={setPage} />
     </>
   );
 }
 
 // ─── Contacto Page ────────────────────────────────────────────────────────────
-function ContactoPage({ content, onLead }: { content: SiteContent; onLead: (l: Lead) => void }) {
+function ContactoPage({ site }: { site: SiteData }) {
+  const t = site.text;
   return (
     <>
-      <PageHeader tag="// SEDE CENTRAL" title="Contáctenos" subtitle="Ingenieros certificados disponibles para visitar su propiedad y diseñar la solución perfecta." />
+      <PageHeader tag={t.contactTag} title={t.contactTitle} subtitle={t.contactSubtitle} />
       <section className="py-16 px-6" style={{ background: "#060f1e" }}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-12">
           <div className="lg:col-span-2 space-y-5">
             <Reveal>
-              <h2 className="text-2xl font-extrabold mb-6" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Información de Contacto</h2>
+              <h2 className="text-2xl font-extrabold mb-6" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.contactInfoTitle}</h2>
             </Reveal>
             {[
-              { icon: Phone, label: "Línea Principal", value: `+57 ${content.phone1}`, href: `tel:+57${content.phone1.replace(/-/g, "")}` },
-              { icon: Phone, label: "Línea Alterna", value: `+57 ${content.phone2}`, href: `tel:+57${content.phone2.replace(/-/g, "")}` },
-              { icon: Mail, label: "Correo Electrónico", value: content.email, href: `mailto:${content.email}` },
-              { icon: MapPin, label: "Dirección", value: `${content.address}, Colombia`, href: "#" },
-            ].map((item, i) => (
+              { icon: Phone, label: t.contactLabelPhone1, value: `+57 ${t.phone1}`, href: telHref(t.phone1) },
+              { icon: Phone, label: t.contactLabelPhone2, value: `+57 ${t.phone2}`, href: telHref(t.phone2) },
+              { icon: Mail, label: t.contactLabelEmail, value: t.email, href: `mailto:${t.email}` },
+              { icon: MapPin, label: t.contactLabelAddress, value: [t.address, t.country].filter(Boolean).join(", "), href: `https://www.google.com/maps/search/${encodeURIComponent([t.address, t.country].filter(Boolean).join(", "))}` },
+            ].filter(item => item.value.replace("+57 ", "")).map((item, i) => (
               <Reveal key={item.label} delay={i * 80}>
-                <a href={item.href} className="flex items-start gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 group"
+                <a href={item.href} target={item.href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="flex items-start gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 group"
                   style={{ background: "rgba(11,26,51,.6)", border: "1px solid rgba(0,242,255,.1)" }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform" style={{ background: "rgba(0,242,255,.08)" }}>
                     <item.icon size={17} style={{ color: "#00f2ff" }} />
@@ -1738,13 +1121,10 @@ function ContactoPage({ content, onLead }: { content: SiteContent; onLead: (l: L
             ))}
             <Reveal delay={320}>
               <div className="p-5 rounded-2xl" style={{ background: "rgba(11,26,51,.5)", border: "1px solid rgba(0,242,255,.08)" }}>
-                <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// REDES SOCIALES</p>
-                <div className="flex gap-3">
-                  {[
-                    { n: "Instagram", h: "@Luedmon.Seguridad", href: "https://www.instagram.com/luedmon.seguridad/" },
-                    { n: "Facebook", h: "@Luedmon.Seguridad", href: "https://www.facebook.com/Luedmon.seguridad/" },
-                  ].map(s => (
-                    <a key={s.n} href={s.href} target="_blank" rel="noopener noreferrer" className="flex-1 p-4 rounded-2xl text-center transition-all hover:-translate-y-0.5"
+                <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.socialTag}</p>
+                <div className="flex gap-3 flex-wrap">
+                  {site.socials.map(s => ({ n: s.name, h: s.handle, href: s.href })).map((s, i) => (
+                    <a key={i} href={s.href} target="_blank" rel="noopener noreferrer" className="flex-1 p-4 rounded-2xl text-center transition-all hover:-translate-y-0.5"
                       style={{ background: "rgba(0,242,255,.04)", border: "1px solid rgba(0,242,255,.1)" }}>
                       <div className="text-xs font-bold" style={{ color: "#00f2ff", fontFamily: "'Inter',sans-serif" }}>{s.n}</div>
                       <div className="text-xs mt-0.5" style={{ color: "#94a3b8", fontFamily: "'JetBrains Mono',monospace" }}>{s.h}</div>
@@ -1757,11 +1137,11 @@ function ContactoPage({ content, onLead }: { content: SiteContent; onLead: (l: L
 
           <Reveal from="right" className="lg:col-span-3">
             <div className="rounded-3xl p-8" style={{ background: "rgba(11,26,51,.8)", backdropFilter: "blur(20px)", border: "1px solid rgba(0,242,255,.14)", boxShadow: "0 8px 48px rgba(0,0,0,.4)" }}>
-              <h3 className="text-2xl font-bold mb-2" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Solicitar Cotización</h3>
+              <h3 className="text-2xl font-bold mb-2" style={{ color: "#e2e8f0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{t.contactFormTitle}</h3>
               <p className="text-sm mb-7" style={{ color: "#94a3b8", fontFamily: "'Inter',sans-serif" }}>
-                Cuéntenos su proyecto. Respondemos en menos de 2 horas hábiles.
+                {t.contactFormSubtitle}
               </p>
-              <ContactForm onLead={onLead} />
+              <ContactForm site={site} />
             </div>
           </Reveal>
         </div>
@@ -1771,23 +1151,25 @@ function ContactoPage({ content, onLead }: { content: SiteContent; onLead: (l: L
 }
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
-function Footer({ setPage, content, onAdminOpen }: { setPage: (p: Page) => void; content: SiteContent; onAdminOpen: () => void }) {
+function Footer({ setPage, site, onAdminOpen }: { setPage: (p: Page) => void; site: SiteData; onAdminOpen: () => void }) {
+  const t = site.text;
+  const content = t;
   return (
     <footer style={{ background: "#010409" }}>
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
           <div>
             <button onClick={() => { setPage("home"); window.scrollTo({ top: 0 }); }} className="flex items-center gap-3 mb-4">
-              <img src="/logo-removebg-preview.png" alt="LUEDMON" className="h-[180px] w-auto brightness-0 invert" />
+              <img src={mediaSrc(site.media.logoFooter)} alt={t.brandName} className="h-[180px] w-auto brightness-0 invert" />
             </button>
             <p className="text-sm leading-relaxed text-slate-300" style={{ fontFamily: "'Inter',sans-serif" }}>
-              Soluciones integrales en seguridad tecnológica con personal calificado y equipos certificados.
+              {t.footerDescription}
             </p>
           </div>
           <div>
-            <p className="text-xs font-bold mb-5 tracking-widest" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// NAVEGACIÓN</p>
+            <p className="text-xs font-bold mb-5 tracking-widest" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.footerNavTag}</p>
             <ul className="space-y-3">
-              {NAV_ITEMS.map(item => (
+              {navItems(t).map(item => (
                 <li key={item.page}>
                   <button onClick={() => { setPage(item.page); window.scrollTo({ top: 0 }); }} className="text-sm text-slate-300 transition-all duration-300 hover:text-white hover:-translate-y-0.5" style={{ fontFamily: "'Inter',sans-serif" }}>{item.label}</button>
                 </li>
@@ -1795,26 +1177,26 @@ function Footer({ setPage, content, onAdminOpen }: { setPage: (p: Page) => void;
             </ul>
           </div>
           <div>
-            <p className="text-xs font-bold mb-5 tracking-widest" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// SERVICIOS</p>
+            <p className="text-xs font-bold mb-5 tracking-widest" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.footerServicesTag}</p>
             <ul className="space-y-3">
-              {["Sistemas CCTV", "Control de Acceso", "Alarmas", "Cerca Eléctrica", "Mantenimiento"].map(s => (
-                <li key={s}><button onClick={() => { setPage(s === "Mantenimiento" ? "mantenimiento" : "instalacion"); window.scrollTo({ top: 0 }); }} className="text-sm text-slate-300 transition-all duration-300 hover:text-white hover:-translate-y-0.5" style={{ fontFamily: "'Inter',sans-serif" }}>{s}</button></li>
+              {site.footerServices.map((s, i) => (
+                <li key={i}><button onClick={() => { setPage(s.page); window.scrollTo({ top: 0 }); }} className="text-sm text-slate-300 transition-all duration-300 hover:text-white hover:-translate-y-0.5" style={{ fontFamily: "'Inter',sans-serif" }}>{s.label}</button></li>
               ))}
             </ul>
           </div>
           <div>
-            <p className="text-xs font-bold mb-5 tracking-widest" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>// CONTACTO</p>
+            <p className="text-xs font-bold mb-5 tracking-widest" style={{ color: "#00f2ff", fontFamily: "'JetBrains Mono',monospace" }}>{t.footerContactTag}</p>
             <ul className="space-y-3">
               <li className="flex items-start gap-2"><MapPin size={13} className="mt-0.5 flex-shrink-0" style={{ color: "#00f2ff" }} /><span className="text-sm text-slate-300" style={{ fontFamily: "'Inter',sans-serif" }}>{content.address}</span></li>
-              <li className="flex items-center gap-2"><Phone size={13} style={{ color: "#00f2ff" }} /><a href={`tel:+57${content.phone1.replace(/-/g, "")}`} className="text-sm text-slate-300 inline-flex transition-all duration-300 hover:text-white hover:-translate-y-0.5" style={{ fontFamily: "'Inter',sans-serif" }}>+57 {content.phone1}</a></li>
-              <li className="flex items-center gap-2"><Phone size={13} style={{ color: "#00f2ff" }} /><a href={`tel:+57${content.phone2.replace(/-/g, "")}`} className="text-sm text-slate-300 inline-flex transition-all duration-300 hover:text-white hover:-translate-y-0.5" style={{ fontFamily: "'Inter',sans-serif" }}>+57 {content.phone2}</a></li>
+              <li className="flex items-center gap-2"><Phone size={13} style={{ color: "#00f2ff" }} /><a href={telHref(content.phone1)} className="text-sm text-slate-300 inline-flex transition-all duration-300 hover:text-white hover:-translate-y-0.5" style={{ fontFamily: "'Inter',sans-serif" }}>+57 {content.phone1}</a></li>
+              <li className="flex items-center gap-2"><Phone size={13} style={{ color: "#00f2ff" }} /><a href={telHref(content.phone2)} className="text-sm text-slate-300 inline-flex transition-all duration-300 hover:text-white hover:-translate-y-0.5" style={{ fontFamily: "'Inter',sans-serif" }}>+57 {content.phone2}</a></li>
               <li className="flex items-center gap-2"><Mail size={13} style={{ color: "#00f2ff" }} /><a href={`mailto:${content.email}`} className="text-sm text-slate-300 inline-flex transition-all duration-300 hover:text-white hover:-translate-y-0.5 break-all" style={{ fontFamily: "'Inter',sans-serif" }}>{content.email}</a></li>
             </ul>
           </div>
         </div>
         <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-8" style={{ borderTop: "1px solid rgba(255,255,255,.04)" }}>
           <p className="text-xs text-slate-400" style={{ fontFamily: "'Inter',sans-serif" }}>
-            © 2026 LUEDMON — {content.tagline.toUpperCase()}. TODOS LOS DERECHOS RESERVADOS.
+            {t.footerCopyright}
           </p>
           <div className="flex items-center gap-5">
             <button onClick={onAdminOpen} className="text-xs transition-colors hover:text-slate-300 flex items-center gap-1.5" style={{ color: "#cbd5e1", fontFamily: "'JetBrains Mono',monospace" }}>
@@ -1832,14 +1214,11 @@ function Footer({ setPage, content, onAdminOpen }: { setPage: (p: Page) => void;
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [appState, setAppState] = usePersistedState();
+  const [site, setSite] = useSite();
   const [activePage, setActivePage] = useState<Page>("home");
   const [adminOpen, setAdminOpen] = useState(false);
 
   const setPage = (p: Page) => { setActivePage(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const addLead = useCallback((lead: Lead) => {
-    setAppState(prev => ({ ...prev, leads: [...prev.leads, lead] }));
-  }, [setAppState]);
 
   useEffect(() => {
     document.body.style.overflowX = "hidden";
@@ -1852,22 +1231,22 @@ export default function App() {
       <style>{CSS_ANIMS}</style>
 
       <div className="min-h-screen" style={{ background: "#060f1e" }}>
-        <Navbar activePage={activePage} setPage={setPage} tagline={appState.content.tagline} />
+        <Navbar activePage={activePage} setPage={setPage} site={site} />
 
         <main>
-          {activePage === "home" && <HomePage content={appState.content} onLead={addLead} setPage={setPage} />}
-          {activePage === "instalacion" && <InstalacionPage setPage={setPage} />}
-          {activePage === "mantenimiento" && <MantenimientoPage setPage={setPage} />}
-          {activePage === "proyectos" && <ProyectosPage projects={appState.projects} setPage={setPage} />}
-          {activePage === "contacto" && <ContactoPage content={appState.content} onLead={addLead} />}
+          {activePage === "home" && <HomePage site={site} setPage={setPage} />}
+          {activePage === "instalacion" && <InstalacionPage site={site} setPage={setPage} />}
+          {activePage === "mantenimiento" && <MantenimientoPage site={site} setPage={setPage} />}
+          {activePage === "proyectos" && <ProyectosPage site={site} setPage={setPage} />}
+          {activePage === "contacto" && <ContactoPage site={site} />}
         </main>
 
-        <Footer setPage={setPage} content={appState.content} onAdminOpen={() => setAdminOpen(true)} />
-        <WhatsAppFloat />
+        <Footer setPage={setPage} site={site} onAdminOpen={() => setAdminOpen(true)} />
+        <WhatsAppFloat site={site} />
       </div>
 
       {adminOpen && (
-        <AdminModal appState={appState} setAppState={setAppState} onClose={() => setAdminOpen(false)} />
+        <AdminModal site={site} onPublished={setSite} onClose={() => setAdminOpen(false)} logo={<ShieldLogo size={52} />} />
       )}
     </>
   );
